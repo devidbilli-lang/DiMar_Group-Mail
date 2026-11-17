@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>DiMar_Group-Mail</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+<style>
+/* Base della pagina: margini di sicurezza del telefono e reset minimi */
+:root { color-scheme: light; box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+body { margin: 0; padding: 0; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+
+/* Layout: schede dei report in alto; editor a sinistra, anteprima della mail su un piano neutro a destra; una colonna sotto i 960px */
+:root {
+  --bg: #F4F3F0;
+  --surface: #FFFFFF;
+  --field: #FAF9F7;
+  --line: #E1DDD5;
+  --fg: #23201C;
+  --muted: #6B655C;
+  --accent: #3B7735;
+  --accent-fg: #FFFFFF;
+  --stage: #E7E4DD;
+  --f-display: 'Montserrat', 'Segoe UI', Tahoma, Verdana, sans-serif;
+  --f-body: 'Montserrat', 'Segoe UI', Tahoma, Verdana, sans-serif;
+  --f-mono: 'Montserrat', 'Segoe UI', Tahoma, Verdana, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161513; --surface: #1F1D1A; --field: #191815; --line: #37332E;
+    --fg: #EEEBE5; --muted: #A59E93; --accent: #7EBF71; --accent-fg: #142010;
+    --stage: #0F0E0C; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161513; --surface: #1F1D1A; --field: #191815; --line: #37332E;
+  --fg: #EEEBE5; --muted: #A59E93; --accent: #7EBF71; --accent-fg: #142010;
+  --stage: #0F0E0C; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+
+.wrap {
+  max-width: 1200px; margin: 0 auto;
+  padding-block: 32px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.top { display: grid; gap: 6px; margin-bottom: 28px; max-width: 68ch; }
+.eyebrow, legend, .lbl {
+  font-family: var(--f-mono); font-size: 11.5px; font-weight: 500;
+  letter-spacing: .09em; text-transform: uppercase; color: var(--muted);
+}
+.eyebrow { margin: 0; }
+h1 { font-family: var(--f-display); font-weight: 600; font-size: clamp(28px, 4.2vw, 40px); line-height: 1.08; margin: 0; text-wrap: balance; }
+.lede { margin: 4px 0 0; color: var(--muted); }
+
+/* Schede dei report */
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.tab {
+  font-family: var(--f-mono); font-size: 12.5px; font-weight: 500; letter-spacing: .06em; line-height: 1.3;
+  padding: 10px 14px; border: 1px solid var(--line); border-radius: 6px; text-align: left;
+  background: var(--surface); color: var(--muted); cursor: pointer; min-width: 0; overflow-wrap: anywhere;
+}
+.tab:hover { border-color: var(--muted); color: var(--fg); }
+.tab[aria-selected="true"] { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+.tab .foto { opacity: .7; white-space: nowrap; }
+.lbl b { font-weight: 500; color: var(--fg); }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+@media (min-width: 960px) {
+  .grid { grid-template-columns: minmax(320px, 380px) minmax(0, 1fr); align-items: start; }
+}
+
+/* Editor */
+.panel {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 20px; display: grid; gap: 26px; min-width: 0;
+}
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+legend { padding: 0; margin-bottom: 12px; }
+.stack { display: grid; gap: 12px; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field label { font-size: 13px; font-weight: 500; }
+input[type="text"], textarea {
+  width: 100%; font: inherit; font-size: 14px; color: var(--fg);
+  background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px;
+}
+textarea { resize: vertical; min-height: 66px; line-height: 1.45; }
+input[type="text"]:hover, textarea:hover { border-color: var(--muted); }
+input:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.chk { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; flex: none; }
+.hint { font-size: 12.5px; color: var(--muted); margin: 0; }
+.flabel { font-size: 13px; font-weight: 500; }
+.size-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.size { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.size input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.size label {
+  font-family: var(--f-mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums;
+  min-width: 40px; text-align: center; padding: 6px 8px; cursor: pointer;
+  background: var(--surface); color: var(--muted);
+}
+.size label:not(:first-of-type) { border-left: 1px solid var(--line); }
+.size label:hover { color: var(--fg); background: var(--field); }
+.size input:checked + label { background: var(--fg); color: var(--bg); }
+.size input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
+.unit { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+
+#sezioni { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.sez { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+.sez-n { font-family: var(--f-mono); font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.sez .chk { font-size: 13px; color: var(--muted); }
+.sez .sez-sub { grid-column: 2 / -1; font-size: 13px; }
+.tools { display: flex; gap: 1px; }
+.icon {
+  width: 28px; height: 28px; display: grid; place-items: center;
+  border: 1px solid transparent; background: transparent; color: var(--muted);
+  border-radius: 6px; cursor: pointer; font-size: 15px; line-height: 1; padding: 0;
+}
+.icon:hover:not(:disabled) { background: var(--field); border-color: var(--line); color: var(--fg); }
+.icon:disabled { opacity: .3; cursor: default; }
+
+.btn {
+  font: inherit; font-size: 14px; font-weight: 500; padding: 9px 14px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.btn.primary:hover { filter: brightness(1.07); }
+.btn.add { justify-self: start; margin-top: 4px; }
+.link { background: none; border: 0; padding: 0; color: var(--muted); font: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; justify-self: start; }
+.link:hover { color: var(--fg); }
+
+/* Anteprima */
+.preview-col { display: grid; gap: 16px; min-width: 0; }
+.bar {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+}
+.subject { display: flex; gap: 10px; align-items: baseline; min-width: 0; flex: 1 1 260px; }
+#p-oggetto { font-weight: 600; overflow-wrap: anywhere; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.stage { background: var(--stage); border-radius: 8px; padding: 28px 20px; overflow-x: auto; }
+#mail { width: max-content; margin: 0 auto; background: #FFFFFF; padding: 28px 32px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
+#mail [data-box] { cursor: pointer; }
+#mail [data-box]:focus { outline: 3px solid #3B7735; outline-offset: 2px; }
+#mail [data-box].over { outline: 3px dashed #3B7735; outline-offset: 2px; background-color: #EEF5EC !important; }
+#mail .hint-box { font-family: var(--f-body); font-size: 15px; line-height: 1.5; color: #6B655C; }
+#mail .hint-box b { color: #23201C; }
+#mail .hint-sub { font-family: var(--f-body); font-style: italic; color: #8B8375; }
+#mail .pick { font: inherit; color: #3B7735; background: none; border: 0; padding: 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+#mail .rm {
+  position: absolute; top: 12px; right: 12px; font: 500 14px var(--f-body); padding: 7px 12px;
+  border-radius: 6px; border: 0; background: rgba(35, 32, 28, .85); color: #FFFFFF; cursor: pointer;
+}
+#mail .rm:hover { background: #23201C; }
+.btn:disabled { opacity: .45; cursor: default; }
+
+.bar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 520px) { #mail { padding: 20px 18px; } }
+
+.howto { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 20px 28px; margin-top: 8px; }
+.howto > div { border-top: 1px solid var(--line); padding-top: 14px; min-width: 0; }
+.howto h2 { font-family: var(--f-display); font-size: 20px; font-weight: 600; line-height: 1.2; margin: 0 0 10px; }
+.howto ol { margin: 0; padding-left: 20px; display: grid; gap: 7px; font-size: 14px; }
+.howto b { font-weight: 600; }
+kbd {
+  font-family: var(--f-mono); font-size: 12px; white-space: nowrap;
+  border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--field);
+}
+
+#toast {
+  position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: translate(-50%, 8px); background: var(--fg); color: var(--bg);
+  padding: 10px 16px; border-radius: 8px; font-size: 14px; opacity: 0; pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease; max-width: calc(100% - 32px); z-index: 20;
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+@media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <p class="eyebrow">Modello per Gmail</p>
+    <h1>DiMar_Group-Mail</h1>
+    <p class="lede">Scegli il report, incolla gli screenshot nei riquadri, che si adattano da soli, poi copia la mail pronta e incollala in Gmail.</p>
+  </header>
+
+  <div class="tabs" id="tabs" role="tablist" aria-label="Report"></div>
+
+  <div class="grid" id="pannello" role="tabpanel">
+    <form id="editor" class="panel" novalidate>
+      <fieldset>
+        <legend>Apertura</legend>
+        <div class="stack">
+          <div class="field"><label for="f-apertura">Testo di apertura</label><textarea id="f-apertura" rows="5"></textarea><p class="hint">Metti il testo tra **doppi asterischi** per il grassetto.</p></div>
+          <div class="field">
+            <span class="flabel" id="lbl-asize">Grandezza testo</span>
+            <div class="size-row">
+              <div class="size" role="radiogroup" aria-labelledby="lbl-asize" data-key="aperturaSize"></div>
+              <span class="unit">px</span>
+            </div>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Sezioni</legend>
+        <div class="stack">
+          <div class="field">
+            <span class="flabel" id="lbl-tsize">Grandezza titoli</span>
+            <div class="size-row">
+              <div class="size" role="radiogroup" aria-labelledby="lbl-tsize" data-key="titoli"></div>
+              <span class="unit">px</span>
+            </div>
+          </div>
+          <label class="chk" for="f-numeri"><input type="checkbox" id="f-numeri"> Numera le sezioni</label>
+          <label class="chk" for="f-sotto"><input type="checkbox" id="f-sotto"> Sottotitolo sotto ogni titolo</label>
+          <div class="field" id="sotto-size-field" hidden>
+            <span class="flabel" id="lbl-ssize">Grandezza sottotitoli</span>
+            <div class="size-row">
+              <div class="size" role="radiogroup" aria-labelledby="lbl-ssize" data-key="sottoSize"></div>
+              <span class="unit">px</span>
+            </div>
+          </div>
+          <ol id="sezioni"></ol>
+          <button type="button" class="btn add" id="add">Aggiungi sezione</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Chiusura</legend>
+        <div class="stack">
+          <div class="field"><label for="f-chiusura">Saluto finale</label><input type="text" id="f-chiusura"></div>
+          <div class="field">
+            <span class="flabel" id="lbl-csize">Grandezza testo</span>
+            <div class="size-row">
+              <div class="size" role="radiogroup" aria-labelledby="lbl-csize" data-key="chiusuraSize"></div>
+              <span class="unit">px</span>
+            </div>
+          </div>
+        </div>
+      </fieldset>
+
+      <button type="button" class="link" id="reset">Ripristina predefiniti</button>
+    </form>
+
+    <section class="preview-col" aria-label="Anteprima della mail">
+      <div class="bar">
+        <span class="lbl"><b id="p-nome"></b> · riquadri <span id="p-larg"></span> px<span id="p-zoom"></span></span>
+        <div class="bar-actions">
+          <button type="button" class="btn" id="svuota" disabled>Svuota riquadri</button>
+          <button type="button" class="btn primary" id="copy-mail">Copia mail per Gmail</button>
+        </div>
+      </div>
+      <input type="file" id="f-file" accept="image/*" hidden>
+
+      <div class="stage"><div id="mail"></div></div>
+
+      <div class="howto">
+        <div>
+          <h2>Ogni giorno</h2>
+          <ol>
+            <li>Cattura la schermata con <kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>.</li>
+            <li>Clicca un riquadro qui nell'anteprima e premi <kbd>Ctrl</kbd>+<kbd>V</kbd>, oppure trascinaci l'immagine. Lo screenshot si adatta da solo alla larghezza del riquadro. Se non hai cliccato nessun riquadro, va nel primo vuoto.</li>
+            <li>Aggiorna la data nel testo di apertura.</li>
+            <li>Premi <b>Copia mail per Gmail</b>, apri una nuova mail e incolla nel corpo con <kbd>Ctrl</kbd>+<kbd>V</kbd>. Aggiungi destinatari e oggetto e invia.</li>
+          </ol>
+        </div>
+        <div>
+          <h2>Da sapere</h2>
+          <ol>
+            <li>I due report sono separati: ognuno ha i suoi testi, le sue sezioni e i suoi screenshot. Prima di copiare controlla quale è selezionato.</li>
+            <li>I riquadri sono bloccati alla larghezza della tua foto, circa una volta e un terzo la riga di apertura.</li>
+            <li>Gli screenshot restano finché la pagina è aperta. Se la ricarichi i riquadri si svuotano, mentre testi, sezioni e grandezze restano salvati.</li>
+            <li>Se incolli lo screenshot direttamente in Gmail, Gmail non lo adatta al riquadro: incollalo qui.</li>
+            <li>La prima volta manda una mail di prova a te stesso e aprila anche dal telefono.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+(function () {
+  var KEY = 'proforma-mail-v2', KEY_OLD = 'proforma-mail-v1';
+
+  // I report: stessa struttura, contenuti e screenshot separati
+  var MODELLI = [
+    { id: 'eff', nome: 'REPORT EFFICIENZE', hash: 'report-efficienze' },
+    { id: 'chanel', nome: 'CHANEL-AGGIORNAMENTO SPEDIZIONI', hash: 'chanel-spedizioni' }
+  ];
+  var DEFS = {
+    eff: {
+      apertura: 'Buon pomeriggio,\ndi seguito il riepilogo delle efficienze dei singoli gruppi di assemblaggio e reparti amont riguardanti la giornata odierna **(gg/mm).**',
+      numeri: true,
+      aperturaSize: 14,
+      titoli: 16,
+      chiusuraSize: 14,
+      sottotitoli: false,
+      sottoSize: 14,
+      sezioni: [
+        { titolo: 'Sintesi della giornata', note: false },
+        { titolo: 'Dettaglio reparti', note: true },
+        { titolo: 'Criticità e azioni', note: true }
+      ],
+      chiusura: 'Un saluto'
+    },
+    chanel: {
+      apertura: 'Buon pomeriggio,\ndi seguito l\'aggiornamento delle spedizioni Chanel alla data odierna **(gg/mm).**',
+      numeri: true,
+      aperturaSize: 14,
+      titoli: 16,
+      chiusuraSize: 14,
+      sottotitoli: true,
+      sottoSize: 14,
+      sezioni: [
+        { titolo: 'Aggiornamento spedizioni', sotto: '', note: false }
+      ],
+      chiusura: 'Un saluto'
+    }
+  };
+
+  function $(s) { return document.querySelector(s); }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function valido(m) { return !!m && Array.isArray(m.sezioni) && m.sezioni.length > 0; }
+  function assignIds(m) {
+    var next = 1;
+    m.sezioni.forEach(function (s) { if (s.id && s.id >= next) next = s.id + 1; });
+    m.sezioni.forEach(function (s) { if (!s.id) s.id = next++; });
+  }
+  function nuovoId() {
+    var mx = 0;
+    state.sezioni.forEach(function (s) { if (s.id > mx) mx = s.id; });
+    return mx + 1;
+  }
+
+  var store = null;
+  try { var raw = localStorage.getItem(KEY); if (raw) store = JSON.parse(raw); } catch (e) { store = null; }
+  if (!store || typeof store.modelli !== 'object' || !store.modelli) {
+    store = { attivo: 'eff', modelli: {} };
+    // quello che avevi già impostato diventa REPORT EFFICIENZE
+    try {
+      var vecchio = JSON.parse(localStorage.getItem(KEY_OLD) || 'null');
+      if (valido(vecchio)) store.modelli.eff = vecchio;
+    } catch (e) {}
+  }
+  MODELLI.forEach(function (M) {
+    var m = store.modelli[M.id];
+    if (!valido(m)) {
+      m = clone(DEFS[M.id]);
+      // un report nuovo parte con le stesse grandezze e la stessa chiusura di REPORT EFFICIENZE
+      if (M.id !== 'eff' && valido(store.modelli.eff)) {
+        ['numeri', 'aperturaSize', 'titoli', 'chiusuraSize', 'chiusura'].forEach(function (k) {
+          if (store.modelli.eff[k] !== undefined) m[k] = store.modelli.eff[k];
+        });
+      }
+      store.modelli[M.id] = m;
+    }
+    Object.keys(DEFS[M.id]).forEach(function (k) { if (m[k] === undefined) m[k] = clone(DEFS[M.id][k]); });
+    assignIds(m);
+  });
+  if (['Buongiorno, di seguito il riepilogo della giornata.', 'Buongiorno,\ndi seguito il riepilogo della giornata.'].indexOf(store.modelli.eff.apertura) !== -1) store.modelli.eff.apertura = DEFS.eff.apertura;
+
+  function modello(id) { for (var i = 0; i < MODELLI.length; i++) if (MODELLI[i].id === id) return MODELLI[i]; return null; }
+  function modelloDaHash() {
+    var h = '';
+    try { h = String(location.hash || '').replace(/^#/, ''); } catch (e) {}
+    for (var i = 0; i < MODELLI.length; i++) if (MODELLI[i].hash === h) return MODELLI[i];
+    return null;
+  }
+  var attivo = modello(store.attivo) ? store.attivo : 'eff';
+  if (modelloDaHash()) attivo = modelloDaHash().id;
+  store.attivo = attivo;
+  var state = store.modelli[attivo];
+  var imgsAll = {};
+  MODELLI.forEach(function (M) { imgsAll[M.id] = {}; });
+  var imgs = imgsAll[attivo];
+  function setImgs(o) { imgs = imgsAll[attivo] = o; }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function br(s) { return esc(s).replace(/\n/g, '<br>'); }
+  function fmt(s) { return br(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'); }
+  function d(s) { return String(s || ''); }
+
+  var FONT = 'Tahoma,Verdana,Geneva,sans-serif';
+  var T = 'role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;';
+
+  var SIZES = {
+    aperturaSize: [12, 13, 14, 15, 16, 18],
+    titoli: [14, 16, 18, 20, 22, 24],
+    chiusuraSize: [12, 13, 14, 15, 16, 18],
+    sottoSize: [12, 13, 14, 15, 16, 18]
+  };
+  function sz(k) { var v = Number(state[k]); return SIZES[k].indexOf(v) !== -1 ? v : DEFS[attivo][k]; }
+
+  // Larghezza bloccata dei riquadri, ricavata dalla foto: riquadro 1553 px e riga di apertura 1185 px a scala 150 %
+  var BOX_W = 1035;
+
+  function boxRow(s, mode) {
+    var prev = mode === 'preview';
+    var im = imgs[s.id];
+    var attrs = prev ? ' data-box="' + s.id + '" tabindex="0" aria-label="Riquadro ' + esc(s.titolo.trim() || 'sezione') + '"' : '';
+    if (im) {
+      var h = Math.round(BOX_W * im.ratio);
+      return '<tr><td' + attrs + ' style="padding:0;font-size:0;line-height:0;' + (prev ? 'position:relative;' : '') + '">' +
+        '<img src="' + im.src + '" width="' + BOX_W + '" height="' + h + '" alt="' + esc(s.titolo.trim()) + '" style="display:block;width:' + BOX_W + 'px;max-width:100%;height:auto;border:0;">' +
+        (prev ? '<button type="button" class="rm" data-act="rm" data-id="' + s.id + '">Rimuovi</button>' : '') +
+      '</td></tr>';
+    }
+    var hint = '<span class="hint-box">Clicca qui e premi <b>Ctrl+V</b>, trascina l\'immagine o <button type="button" class="pick" data-act="file" data-id="' + s.id + '">scegli un file</button></span>';
+    return '<tr><td' + attrs + ' align="center" style="padding:44px 16px;background-color:#FAF9F4;border:1px dashed #C9BFAE;font-family:' + FONT + ';font-size:13px;line-height:1.4;color:#8B8375;text-align:center;">' + (prev ? hint : '&nbsp;') + '</td></tr>';
+  }
+
+  function buildEmail(mode) {
+    var ts = sz('titoli');
+    var sez = state.sezioni.map(function (s, i) {
+      var titolo = (state.numeri ? (i + 1) + '. ' : '') + esc(s.titolo.trim() || 'Titolo sezione');
+      var nota = s.note
+        ? '<tr><td style="padding:10px 0 0 0;font-family:' + FONT + ';font-size:14px;line-height:1.5;color:#4A443D;"><strong style="color:#26221E;">Note:</strong> scrivi qui un commento</td></tr>'
+        : '';
+      var sotto = state.sottotitoli ? String(s.sotto || '').trim() : '';
+      var sottoHtml = sotto ? esc(sotto) : (state.sottotitoli && mode === 'preview' ? '<span class="hint-sub">Sottotitolo: scrivilo nel campo a sinistra</span>' : '');
+      var stileTitolo = 'font-family:' + FONT + ';font-size:' + ts + 'px;line-height:1.4;font-weight:bold;color:#26221E;';
+      var testata = sottoHtml
+        ? '<tr><td style="padding:0 0 2px 0;' + stileTitolo + '">' + titolo + '</td></tr>' +
+          '<tr><td style="padding:0 0 6px 0;border-bottom:1px solid #E7E0D3;font-family:' + FONT + ';font-size:' + sz('sottoSize') + 'px;line-height:1.4;color:#4A443D;">' + sottoHtml + '</td></tr>'
+        : '<tr><td style="padding:0 0 6px 0;border-bottom:1px solid #E7E0D3;' + stileTitolo + '">' + titolo + '</td></tr>';
+      return '<tr><td style="padding:26px 0 0 0;">' +
+        '<table ' + T + '">' +
+          testata +
+          '<tr><td style="padding:12px 0 0 0;">' +
+            '<table ' + T + '">' +
+              boxRow(s, mode) +
+            '</table>' +
+          '</td></tr>' +
+          nota +
+        '</table>' +
+      '</td></tr>';
+    }).join('');
+
+    var apertura = state.apertura.trim()
+      ? '<tr><td style="padding:0;font-family:' + FONT + ';font-size:' + sz('aperturaSize') + 'px;line-height:1.5;color:#26221E;">' + fmt(d(state.apertura)) + '</td></tr>'
+      : '';
+    var chiusura = String(state.chiusura || '').trim()
+      ? '<tr><td style="padding:28px 0 0 0;font-family:' + FONT + ';font-size:' + sz('chiusuraSize') + 'px;line-height:1.5;color:#26221E;">' + esc(state.chiusura.trim()) + '</td></tr>'
+      : '';
+    return '<table role="presentation" width="' + BOX_W + '" cellpadding="0" cellspacing="0" border="0" style="width:' + BOX_W + 'px;border-collapse:collapse;font-family:' + FONT + ';-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">' +
+      apertura + sez + chiusura +
+    '</table>';
+  }
+
+  function buildText() {
+    var out = [];
+    if (state.apertura.trim()) { out.push(d(state.apertura).replace(/\*\*/g, '')); out.push(''); }
+    state.sezioni.forEach(function (s, i) {
+      out.push((state.numeri ? (i + 1) + '. ' : '') + (s.titolo.trim() || 'Titolo sezione'));
+      if (state.sottotitoli && String(s.sotto || '').trim()) out.push(s.sotto.trim());
+      if (s.note) out.push('Note: ');
+      out.push('');
+    });
+    if (String(state.chiusura || '').trim()) out.push(state.chiusura.trim());
+    return out.join('\n').trim();
+  }
+
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
+
+  // Schede dei report
+  function renderTabs() {
+    $('#tabs').innerHTML = MODELLI.map(function (M) {
+      var n = Object.keys(imgsAll[M.id]).length;
+      return '<button type="button" class="tab" role="tab" id="tab-' + M.id + '" data-modello="' + M.id + '" aria-controls="pannello" aria-selected="' + (M.id === attivo) + '" tabindex="' + (M.id === attivo ? '0' : '-1') + '">' +
+        esc(M.nome) + (n ? ' <span class="foto">· ' + n + ' foto</span>' : '') + '</button>';
+    }).join('');
+    $('#pannello').setAttribute('aria-labelledby', 'tab-' + attivo);
+    $('#p-nome').textContent = modello(attivo).nome;
+  }
+  function attiva(id, daHash) {
+    if (!modello(id) || id === attivo) return;
+    attivo = id;
+    store.attivo = id;
+    state = store.modelli[id];
+    imgs = imgsAll[id];
+    fillFields();
+    renderSezioni();
+    update();
+    if (!daHash) { try { location.hash = modello(id).hash; } catch (e) {} }
+  }
+  $('#tabs').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-modello]');
+    if (b) attiva(b.getAttribute('data-modello'));
+  });
+  $('#tabs').addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    var i = 0;
+    MODELLI.forEach(function (M, k) { if (M.id === attivo) i = k; });
+    var j = (i + (e.key === 'ArrowRight' ? 1 : MODELLI.length - 1)) % MODELLI.length;
+    e.preventDefault();
+    attiva(MODELLI[j].id);
+    var t = document.getElementById('tab-' + MODELLI[j].id);
+    if (t) t.focus();
+  });
+  window.addEventListener('hashchange', function () {
+    var M = modelloDaHash();
+    if (M) attiva(M.id, true);
+  });
+
+  function fit() {
+    var m = $('#mail'), st = $('.stage');
+    var cs = getComputedStyle(m), ss = getComputedStyle(st);
+    var natural = BOX_W + parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    var avail = st.clientWidth - parseFloat(ss.paddingLeft) - parseFloat(ss.paddingRight);
+    var k = Math.min(1, avail / natural);
+    var z = k < 1 ? String(Math.floor(k * 1000) / 1000) : '';
+    if (m.style.zoom !== z) m.style.zoom = z;
+    $('#p-zoom').textContent = k < 1 ? ' · ridotta al ' + Math.round(k * 100) + ' %' : '';
+  }
+  window.addEventListener('resize', fit);
+
+  function update() {
+    $('#mail').innerHTML = buildEmail('preview');
+    renderTabs();
+    $('#svuota').disabled = !Object.keys(imgs).length;
+    fit();
+    save();
+  }
+
+  // Screenshot: ridimensionati alla larghezza del riquadro (fino a 2x per la nitidezza)
+  function numeroSezione(id) {
+    for (var i = 0; i < state.sezioni.length; i++) if (state.sezioni[i].id === id) return i + 1;
+    return 0;
+  }
+  function leggiImmagine(file, id) {
+    if (!file || !/^image\//.test(file.type)) { toast("Il file scelto non è un'immagine."); return; }
+    var dest = imgsAll[attivo], destId = attivo; // il report scelto al momento dell'incolla
+    var url = URL.createObjectURL(file);
+    var im = new Image();
+    im.onload = function () {
+      var w = im.naturalWidth, h = im.naturalHeight;
+      var cw = Math.min(w, BOX_W * 2), ch = Math.round(h * cw / w);
+      var c = document.createElement('canvas');
+      c.width = cw; c.height = ch;
+      var x = c.getContext('2d');
+      x.imageSmoothingQuality = 'high';
+      x.drawImage(im, 0, 0, cw, ch);
+      URL.revokeObjectURL(url);
+      var src = c.toDataURL('image/png');
+      if (src.length > 2500000) src = c.toDataURL('image/jpeg', 0.92);
+      dest[id] = { src: src, ratio: ch / cw };
+      update();
+      toast(destId === attivo ? 'Screenshot inserito nel riquadro ' + numeroSezione(id) + '.' : 'Screenshot inserito in ' + modello(destId).nome + '.');
+    };
+    im.onerror = function () { URL.revokeObjectURL(url); toast("Non riesco a leggere questa immagine. Prova a copiarla di nuovo."); };
+    im.src = url;
+  }
+  function primoVuoto() {
+    for (var i = 0; i < state.sezioni.length; i++) if (!imgs[state.sezioni[i].id]) return state.sezioni[i].id;
+    return null;
+  }
+
+  document.addEventListener('paste', function (e) {
+    var items = (e.clipboardData && e.clipboardData.items) || [];
+    var file = null;
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file' && /^image\//.test(items[i].type)) { file = items[i].getAsFile(); break; }
+    }
+    if (!file) return;
+    var a = document.activeElement;
+    var box = a && a.closest ? a.closest('[data-box]') : null;
+    var id;
+    if (box) id = Number(box.getAttribute('data-box'));
+    else {
+      if (a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && a.type !== 'radio' && a.type !== 'checkbox') return;
+      id = primoVuoto();
+      if (id === null) { e.preventDefault(); toast('I riquadri sono tutti pieni. Clicca quello da sostituire e incolla di nuovo.'); return; }
+    }
+    e.preventDefault();
+    leggiImmagine(file, id);
+  });
+
+  var mailEl = $('#mail');
+  var fileTarget = null;
+  mailEl.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-act]');
+    if (!b) return;
+    var id = Number(b.getAttribute('data-id'));
+    if (b.getAttribute('data-act') === 'rm') {
+      delete imgs[id];
+      update();
+      var box = mailEl.querySelector('[data-box="' + id + '"]');
+      if (box) box.focus();
+    } else if (b.getAttribute('data-act') === 'file') {
+      fileTarget = id;
+      $('#f-file').click();
+    }
+  });
+  $('#f-file').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (f && fileTarget !== null) leggiImmagine(f, fileTarget);
+    e.target.value = '';
+  });
+  mailEl.addEventListener('dragover', function (e) {
+    var b = e.target.closest('[data-box]');
+    if (!b) return;
+    e.preventDefault();
+    mailEl.querySelectorAll('.over').forEach(function (o) { if (o !== b) o.classList.remove('over'); });
+    b.classList.add('over');
+  });
+  mailEl.addEventListener('dragleave', function (e) {
+    var b = e.target.closest('[data-box]');
+    if (b && !b.contains(e.relatedTarget)) b.classList.remove('over');
+  });
+  mailEl.addEventListener('drop', function (e) {
+    var b = e.target.closest('[data-box]');
+    if (!b) return;
+    e.preventDefault();
+    b.classList.remove('over');
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    leggiImmagine(f, Number(b.getAttribute('data-box')));
+  });
+  document.addEventListener('dragover', function (e) { if (!e.target.closest || !e.target.closest('[data-box]')) e.preventDefault(); });
+  document.addEventListener('drop', function (e) { if (!e.target.closest || !e.target.closest('[data-box]')) e.preventDefault(); });
+
+  $('#svuota').addEventListener('click', function () {
+    setImgs({});
+    update();
+    toast('Riquadri svuotati.');
+  });
+
+  var FIELDS = { apertura: '#f-apertura', chiusura: '#f-chiusura' };
+  function fillFields() {
+    Object.keys(FIELDS).forEach(function (k) { $(FIELDS[k]).value = state[k]; });
+    $('#f-numeri').checked = !!state.numeri;
+    $('#f-sotto').checked = !!state.sottotitoli;
+    $('#sotto-size-field').hidden = !state.sottotitoli;
+    Object.keys(SIZES).forEach(function (k) {
+      var r = document.getElementById(k + '-' + sz(k));
+      if (r) r.checked = true;
+    });
+  }
+  document.querySelectorAll('.size[data-key]').forEach(function (g) {
+    var k = g.getAttribute('data-key');
+    g.innerHTML = SIZES[k].map(function (v) {
+      var id = k + '-' + v;
+      return '<input type="radio" name="' + k + '" id="' + id + '" value="' + v + '"><label for="' + id + '">' + v + '</label>';
+    }).join('');
+    g.addEventListener('change', function (e) {
+      if (e.target.name === k) { state[k] = Number(e.target.value); update(); }
+    });
+  });
+  Object.keys(FIELDS).forEach(function (k) {
+    $(FIELDS[k]).addEventListener('input', function (e) { state[k] = e.target.value; update(); });
+  });
+  $('#f-numeri').addEventListener('change', function (e) { state.numeri = e.target.checked; update(); });
+  $('#f-sotto').addEventListener('change', function (e) {
+    state.sottotitoli = e.target.checked;
+    $('#sotto-size-field').hidden = !state.sottotitoli;
+    renderSezioni();
+    update();
+  });
+
+  function renderSezioni(focusId) {
+    var ol = $('#sezioni');
+    ol.innerHTML = '';
+    var n = state.sezioni.length;
+    state.sezioni.forEach(function (s, i) {
+      var li = document.createElement('li');
+      li.className = 'sez';
+      li.innerHTML =
+        '<span class="sez-n">' + (i + 1) + '</span>' +
+        '<input type="text" id="sez-t-' + s.id + '" aria-label="Titolo sezione ' + (i + 1) + '" value="' + esc(s.titolo) + '">' +
+        '<label class="chk" for="sez-n-' + s.id + '"><input type="checkbox" id="sez-n-' + s.id + '"' + (s.note ? ' checked' : '') + '> Note</label>' +
+        '<div class="tools">' +
+          '<button type="button" class="icon" data-act="up" aria-label="Sposta su"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
+          '<button type="button" class="icon" data-act="down" aria-label="Sposta giù"' + (i === n - 1 ? ' disabled' : '') + '>↓</button>' +
+          '<button type="button" class="icon" data-act="del" aria-label="Elimina sezione"' + (n === 1 ? ' disabled' : '') + '>×</button>' +
+        '</div>' +
+        (state.sottotitoli ? '<input type="text" class="sez-sub" id="sez-s-' + s.id + '" aria-label="Sottotitolo sezione ' + (i + 1) + '" placeholder="Sottotitolo" value="' + esc(s.sotto || '') + '">' : '');
+      li.querySelector('input[type="text"]').addEventListener('input', function (e) { s.titolo = e.target.value; update(); });
+      var sub = li.querySelector('.sez-sub');
+      if (sub) sub.addEventListener('input', function (e) { s.sotto = e.target.value; update(); });
+      li.querySelector('input[type="checkbox"]').addEventListener('change', function (e) { s.note = e.target.checked; update(); });
+      li.querySelectorAll('button').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var act = b.getAttribute('data-act');
+          var arr = state.sezioni, tmp;
+          if (act === 'up' && i > 0) { tmp = arr[i - 1]; arr[i - 1] = arr[i]; arr[i] = tmp; }
+          else if (act === 'down' && i < arr.length - 1) { tmp = arr[i + 1]; arr[i + 1] = arr[i]; arr[i] = tmp; }
+          else if (act === 'del' && arr.length > 1) { delete imgs[arr[i].id]; arr.splice(i, 1); }
+          renderSezioni();
+          update();
+        });
+      });
+      ol.appendChild(li);
+    });
+    if (focusId) {
+      var inp = document.getElementById('sez-t-' + focusId);
+      if (inp) { inp.focus(); inp.select(); }
+    }
+  }
+
+  $('#add').addEventListener('click', function () {
+    var s = { id: nuovoId(), titolo: 'Nuova sezione', sotto: '', note: true };
+    state.sezioni.push(s);
+    renderSezioni(s.id);
+    update();
+  });
+
+  var tt;
+  function toast(m) {
+    var t = $('#toast');
+    t.textContent = m;
+    t.classList.add('show');
+    clearTimeout(tt);
+    tt = setTimeout(function () { t.classList.remove('show'); }, 2800);
+  }
+
+  function selectNode(el) {
+    var sel = window.getSelection();
+    var r = document.createRange();
+    r.selectNodeContents(el);
+    sel.removeAllRanges();
+    sel.addRange(r);
+    return sel;
+  }
+  function copyBySelection(el) {
+    var ok = false;
+    var sel = selectNode(el);
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    if (ok) sel.removeAllRanges();
+    return ok;
+  }
+
+  $('#copy-mail').addEventListener('click', function () {
+    var html = buildEmail('export');
+    var text = buildText();
+    var fatto = 'Mail «' + modello(attivo).nome + '» copiata. Incollala nel corpo di una nuova mail Gmail.';
+    var fallback = function () {
+      var tmp = document.createElement('div');
+      tmp.style.cssText = 'position:fixed;left:-99999px;top:0;background:#FFFFFF;';
+      tmp.innerHTML = html;
+      document.body.appendChild(tmp);
+      var ok = copyBySelection(tmp);
+      document.body.removeChild(tmp);
+      if (ok) toast(fatto);
+      else toast('La copia non è riuscita. Seleziona la mail nell\'anteprima e premi Ctrl+C.');
+    };
+    try {
+      if (navigator.clipboard && window.ClipboardItem) {
+        navigator.clipboard.write([new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([text], { type: 'text/plain' })
+        })]).then(function () {
+          toast(fatto);
+        }, fallback);
+        return;
+      }
+    } catch (e) {}
+    fallback();
+  });
+
+  var armed = false, armTimer;
+  $('#reset').addEventListener('click', function () {
+    var b = $('#reset');
+    if (!armed) {
+      armed = true;
+      b.textContent = 'Clicca di nuovo per ripristinare';
+      armTimer = setTimeout(function () { armed = false; b.textContent = 'Ripristina predefiniti'; }, 3000);
+      return;
+    }
+    clearTimeout(armTimer);
+    armed = false;
+    b.textContent = 'Ripristina predefiniti';
+    state = store.modelli[attivo] = clone(DEFS[attivo]);
+    setImgs({});
+    assignIds(state);
+    fillFields();
+    renderSezioni();
+    update();
+    toast('Valori predefiniti ripristinati per ' + modello(attivo).nome + '.');
+  });
+
+  $('#editor').addEventListener('submit', function (e) { e.preventDefault(); });
+
+  $('#p-larg').textContent = BOX_W.toLocaleString('it-IT');
+  fillFields();
+  renderSezioni();
+  update();
+})();
+</script>
+</body>
+</html>
