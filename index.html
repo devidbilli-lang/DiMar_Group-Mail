@@ -252,7 +252,9 @@ kbd {
 .pbi-dot.ok { background: #2E9B4F; }
 .pbi-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .pbi input[type="date"] { font: inherit; font-size: 14px; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; }
-.pbi input[type="date"]:hover { border-color: var(--muted); }
+.pbi input[type="date"]:hover, .pbi select:hover { border-color: var(--muted); }
+.pbi select { font: inherit; font-size: 14px; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; flex: 1 1 160px; min-width: 0; max-width: 100%; cursor: pointer; }
+.pbi select:disabled { opacity: .55; cursor: default; }
 .pbi code { font-family: ui-monospace, Consolas, 'Courier New', monospace; font-size: 12.5px; background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
 .pbi-ris { margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); font-size: 14px; display: grid; gap: 6px; overflow-wrap: anywhere; }
 .pbi-ris.err { border-color: #C62828; }
@@ -355,6 +357,12 @@ kbd {
             <input type="date" id="pbi-data">
             <button type="button" class="btn" id="pbi-prova" disabled>Prova collegamento</button>
           </div>
+          <div class="pbi-row">
+            <label class="flabel" for="pbi-box">Riquadro</label>
+            <select id="pbi-box"></select>
+            <button type="button" class="btn primary" id="pbi-compila" disabled>Compila da Power BI</button>
+          </div>
+          <p class="hint">«Compila» disegna nel riquadro scelto i quattro indicatori del Pannello di Controllo (Stabilimento, Assemblaggi, Flusso Amont, Efficacia) con i valori del giorno.</p>
           <div class="pbi-ris" id="pbi-ris" role="status" aria-live="polite" hidden></div>
           <p class="hint">L'accesso è il tuo account Microsoft: nella pagina non viene salvata nessuna password. Si apre in una finestrella, quindi gli screenshot già incollati restano al loro posto.</p>
           <details>
@@ -741,6 +749,7 @@ kbd {
     renderTabs();
     $('#svuota').disabled = !fotoVisibili(attivo);
     aggiornaDestinatari();
+    pbiRiquadri();
     fit();
     save();
   }
@@ -1138,9 +1147,11 @@ kbd {
   var PBI_SCOPE = 'https://analysis.windows.net/powerbi/api/Dataset.Read.All https://analysis.windows.net/powerbi/api/Report.Read.All offline_access openid profile';
   var GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   // Valori letti dalla prova: gli stessi quattro indicatori in alto nel Pannello di Controllo, per il giorno scelto
+  var PBI_NON_STABILIMENTO = ['Mazzei', 'Track&Trace', 'Flacca'];
+  var PBI_NON_ASSEMBLAGGI = ['Preparazione DG', 'RMA', 'Taglio DG', 'Tingitura', 'Track&Trace', 'Mazzei', 'Flacca'];
   var PBI_PROVA = [
-    { k: 'Stabilimento', m: '[Efficienza_Stabilimento]' },
-    { k: 'Assemblaggi', m: '[Efficienza]' },
+    { k: 'Stabilimento', m: "'Presenze CF Worker'[Efficienza_Stabilimento]", f: '__LineeStabilimento' },
+    { k: 'Assemblaggi', m: "'Qualità CF Worker'[Efficienza]", f: '__LineeAssemblaggi' },
     { k: 'Flusso Amont', m: '[GlobFA]' },
     { k: 'Efficacia', m: '[Efficacia]' }
   ];
@@ -1201,6 +1212,7 @@ kbd {
     $('#pbi-login').hidden = dentro;
     $('#pbi-logout').hidden = !dentro;
     $('#pbi-prova').disabled = !dentro || pbiOccupato;
+    $('#pbi-compila').disabled = !dentro || pbiOccupato || attivo !== 'eff';
   }
 
   function spiegaAccesso(codice, descr) {
@@ -1377,22 +1389,145 @@ kbd {
     if (v === null || v === undefined || v === '' || isNaN(Number(v))) return '—';
     return (Number(v) * 100).toFixed(2).replace('.', ',') + ' %';
   }
-  function pbiProva() {
+  // Giorno scelto e controlli comuni a «Prova» e «Compila»: restituisce null (con il messaggio già mostrato) se manca qualcosa
+  function pbiGiorno() {
     var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec($('#pbi-data').value || '');
-    if (!m) { pbiEsito('err', 'Scegli il giorno da leggere.'); $('#pbi-data').focus(); return; }
-    if (!GUID.test(pbi.group.trim()) || !GUID.test(pbi.report.trim())) { pbiEsito('err', 'ID dell\'area di lavoro o del report non valido: controllali in «Avanzate».'); return; }
-    var filtro = "'Presenze CF Worker'[Data] = DATE(" + Number(m[1]) + ', ' + Number(m[2]) + ', ' + Number(m[3]) + ')';
-    var dax = 'EVALUATE ROW(' + PBI_PROVA.map(function (p) { return '"' + p.k + '", CALCULATE(' + p.m + ', ' + filtro + ')'; }).join(', ') + ')';
-    var giorno = m[3] + '/' + m[2] + '/' + m[1];
+    if (!m) { pbiEsito('err', 'Scegli il giorno da leggere.'); $('#pbi-data').focus(); return null; }
+    if (!GUID.test(pbi.group.trim()) || !GUID.test(pbi.report.trim())) { pbiEsito('err', 'ID dell\'area di lavoro o del report non valido: controllali in «Avanzate».'); return null; }
+    return { a: Number(m[1]), m: Number(m[2]), g: Number(m[3]), testo: m[3] + '/' + m[2] + '/' + m[1] };
+  }
+  // Legge dal modello i quattro indicatori del giorno: [{ k: nome, v: numero oppure null }]
+  function pbiLeggi(giorno) {
+    // Stessi filtri degli oggetti visivi del Pannello di Controllo (presi da «Copia query» dell'Analizzatore prestazioni):
+    // il giorno come filtro di pagina; Stabilimento e Assemblaggi escludono ciascuno un proprio elenco di linee
+    function escluse(nome, linee) {
+      return 'VAR ' + nome + " = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Nome Linea])), NOT('Presenze CF Worker'[Nome Linea] IN {"
+        + linee.map(function (n) { return '"' + n.replace(/"/g, '""') + '"'; }).join(', ') + '}))\n';
+    }
+    var dax = 'DEFINE\n'
+      + "VAR __Giorno = TREATAS({DATE(" + giorno.a + ', ' + giorno.m + ', ' + giorno.g + ")}, 'Presenze CF Worker'[Data])\n"
+      + escluse('__LineeStabilimento', PBI_NON_STABILIMENTO)
+      + escluse('__LineeAssemblaggi', PBI_NON_ASSEMBLAGGI)
+      + 'EVALUATE ROW(' + PBI_PROVA.map(function (p) { return '"' + p.k + '", CALCULATE(' + p.m + ', __Giorno' + (p.f ? ', ' + p.f : '') + ')'; }).join(', ') + ')';
+    return pbiQuery(dax).then(function (righe) {
+      var r = righe[0] || {};
+      return PBI_PROVA.map(function (p) {
+        var v = r['[' + p.k + ']'];
+        return { k: p.k, v: (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v) };
+      });
+    });
+  }
+  function pbiProva() {
+    var giorno = pbiGiorno();
+    if (!giorno) return;
     pbiOccupato = true; pbiDisegna();
     pbiEsito('info', 'Leggo i valori da Power BI…');
-    pbiQuery(dax).then(function (righe) {
-      var r = righe[0] || {};
-      var valori = PBI_PROVA.map(function (p) { return [p.k, pbiPerc(r['[' + p.k + ']'])]; });
-      var vuoto = valori.every(function (v) { return v[1] === '—'; });
+    pbiLeggi(giorno).then(function (letti) {
+      var valori = letti.map(function (x) { return [x.k, pbiPerc(x.v)]; });
+      var vuoto = letti.every(function (x) { return x.v === null; });
       pbiEsito(vuoto ? 'info' : 'ok', vuoto
-        ? 'Collegamento riuscito, ma per il ' + giorno + ' il modello non ha valori: prova un altro giorno.'
-        : 'Collegamento riuscito. Valori del ' + giorno + (pbi.nomeReport ? ' letti dal report «' + pbi.nomeReport + '»' : '') + ': confrontali con il Pannello di Controllo.', valori);
+        ? 'Collegamento riuscito, ma per il ' + giorno.testo + ' il modello non ha valori: prova un altro giorno.'
+        : 'Collegamento riuscito. Valori del ' + giorno.testo + (pbi.nomeReport ? ' letti dal report «' + pbi.nomeReport + '»' : '') + ': confrontali con il Pannello di Controllo.', valori);
+    }, function (e) {
+      pbiEsito('err', e.message);
+    }).then(function () { pbiOccupato = false; pbiDisegna(); });
+  }
+
+  // Elenco dei riquadri di REPORT EFFICIENZE in cui si può disegnare
+  function pbiRiquadri() {
+    var sel = $('#pbi-box');
+    if (!sel) return;
+    if (attivo !== 'eff') {
+      sel.innerHTML = '<option value="">Solo in REPORT EFFICIENZE</option>';
+      sel.disabled = true;
+    } else {
+      var prima = sel.value, voci = [];
+      state.sezioni.forEach(function (sz_, i) {
+        var nome = (i + 1) + '. ' + (sz_.titolo.trim() || 'Titolo sezione');
+        var bl = blocchi(sz_);
+        if (bl) bl.forEach(function (b, j) { voci.push([sz_.id + '-' + b.id, nome + ' · ' + (String(b.testo || '').trim() || 'Sottotitolo ' + (j + 1))]); });
+        else voci.push([String(sz_.id), nome]);
+      });
+      sel.innerHTML = voci.map(function (v) { return '<option value="' + esc(v[0]) + '">' + esc(v[1]) + (imgs[v[0]] ? ' (pieno)' : '') + '</option>'; }).join('');
+      sel.disabled = false;
+      var chiaviOra = voci.map(function (v) { return v[0]; });
+      sel.value = chiaviOra.indexOf(prima) !== -1 ? prima : (primoVuoto() || chiaviOra[0] || '');
+    }
+    $('#pbi-compila').disabled = !pbiTok || pbiOccupato || attivo !== 'eff';
+  }
+
+  // Ridisegna la fascia alta del Pannello di Controllo: quattro riquadri scuri con l'indicatore a semicerchio
+  var PBI_COLORI = { 'Stabilimento': '#F2B84B', 'Assemblaggi': '#4CC2E0', 'Flusso Amont': '#F07F9C', 'Efficacia': '#A58BF5' };
+  function pbiImmagine(letti, giorno) {
+    var S = 2, W = BOX_W, M = 4, G = 4, TH = 162, PIEDE = 26, H = M + TH + PIEDE;
+    var c = document.createElement('canvas');
+    c.width = W * S; c.height = H * S;
+    var x = c.getContext('2d');
+    x.scale(S, S);
+    var F = 'Tahoma, Verdana, "Segoe UI", Arial, sans-serif';
+    x.fillStyle = '#0B1220'; x.fillRect(0, 0, W, H);
+    var tw = (W - 2 * M - 3 * G) / 4;
+    letti.forEach(function (it, i) {
+      var tx = M + i * (tw + G), ty = M, col_ = PBI_COLORI[it.k] || '#FFFFFF';
+      // riquadro
+      var r = 7;
+      x.beginPath();
+      x.moveTo(tx + r, ty); x.lineTo(tx + tw - r, ty); x.quadraticCurveTo(tx + tw, ty, tx + tw, ty + r);
+      x.lineTo(tx + tw, ty + TH - r); x.quadraticCurveTo(tx + tw, ty + TH, tx + tw - r, ty + TH);
+      x.lineTo(tx + r, ty + TH); x.quadraticCurveTo(tx, ty + TH, tx, ty + TH - r);
+      x.lineTo(tx, ty + r); x.quadraticCurveTo(tx, ty, tx + r, ty);
+      x.fillStyle = '#131C2E'; x.fill();
+      x.lineWidth = 1; x.strokeStyle = '#1D2A42'; x.stroke();
+      // titolo
+      x.fillStyle = col_; x.textAlign = 'center'; x.textBaseline = 'alphabetic';
+      x.font = 'bold 17px ' + F;
+      x.fillText(it.k, tx + tw / 2, ty + 18);
+      // semicerchio: fondo chiaro e parte colorata in proporzione al valore (ferma al 100 %)
+      var cx = tx + tw / 2, cy = ty + 138, R = 94, LW = 34;
+      x.lineWidth = LW; x.lineCap = 'butt';
+      x.strokeStyle = '#F3F2F1';
+      x.beginPath(); x.arc(cx, cy, R, Math.PI, 2 * Math.PI); x.stroke();
+      if (it.v !== null) {
+        var q = Math.max(0, Math.min(1, it.v));
+        if (q > 0) { x.strokeStyle = col_; x.beginPath(); x.arc(cx, cy, R, Math.PI, Math.PI + Math.PI * q); x.stroke(); }
+      }
+      // valore
+      x.fillStyle = col_;
+      var testoV = it.v === null ? '--' : Math.round(it.v * 100) + '%';
+      x.font = (testoV.length > 3 ? 34 : 41) + 'px ' + F;
+      x.fillText(testoV, cx, cy - 6);
+      // estremi della scala
+      x.fillStyle = '#A9B3C6'; x.font = '13px ' + F;
+      x.textAlign = 'left'; x.fillText('0%', cx - R - LW / 2, cy + 17);
+      x.textAlign = 'right'; x.fillText('100%', cx + R + LW / 2, cy + 17);
+    });
+    var ora = new Date();
+    function due(n) { return ('0' + n).slice(-2); }
+    x.fillStyle = '#8E99AD'; x.font = '12px ' + F; x.textAlign = 'right';
+    x.fillText('Dati del ' + giorno.testo + ' · letti da Power BI il ' + due(ora.getDate()) + '/' + due(ora.getMonth() + 1) + '/' + ora.getFullYear() + ' alle ' + due(ora.getHours()) + ':' + due(ora.getMinutes()), W - M - 4, M + TH + 17);
+    return { src: c.toDataURL('image/png'), ratio: H / W };
+  }
+  function pbiCompila() {
+    if (attivo !== 'eff') { pbiEsito('err', 'Passa alla scheda REPORT EFFICIENZE: i valori di Power BI si disegnano solo lì.'); return; }
+    var chiave = $('#pbi-box').value;
+    if (!chiave || chiavi(state).indexOf(chiave) === -1) { pbiEsito('err', 'Scegli il riquadro da compilare.'); $('#pbi-box').focus(); return; }
+    var giorno = pbiGiorno();
+    if (!giorno) return;
+    var dest = imgsAll.eff, eraPieno = !!dest[chiave];
+    var sel = $('#pbi-box'), nomeRiquadro = (sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : '').replace(/ \(pieno\)$/, '');
+    pbiOccupato = true; pbiDisegna();
+    pbiEsito('info', 'Leggo i valori da Power BI…');
+    pbiLeggi(giorno).then(function (letti) {
+      if (letti.every(function (x) { return x.v === null; })) {
+        pbiEsito('info', 'Per il ' + giorno.testo + ' il modello non ha valori: il riquadro non è stato toccato. Prova un altro giorno.');
+        return;
+      }
+      dest[chiave] = pbiImmagine(letti, giorno);
+      pbiOccupato = false;
+      update();
+      pbiEsito('ok', 'Riquadro «' + nomeRiquadro + '» compilato con i valori del ' + giorno.testo + (eraPieno ? ' (ha sostituito l\'immagine che c\'era)' : '') + '.',
+        letti.map(function (x) { return [x.k, pbiPerc(x.v)]; }));
+      toast('Riquadro compilato da Power BI.');
     }, function (e) {
       pbiEsito('err', e.message);
     }).then(function () { pbiOccupato = false; pbiDisegna(); });
@@ -1417,6 +1552,7 @@ kbd {
       pbiEsito('info', 'Scollegato da questa pagina. L\'account Microsoft resta aperto nel browser.');
     });
     $('#pbi-prova').addEventListener('click', pbiProva);
+    $('#pbi-compila').addEventListener('click', pbiCompila);
     pbiDisegna();
   })();
 
