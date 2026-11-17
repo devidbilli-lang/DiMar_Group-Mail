@@ -245,6 +245,23 @@ kbd {
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+
+/* Collegamento a Power BI */
+.pbi-stato { display: flex; align-items: center; gap: 8px; font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
+.pbi-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+.pbi-dot.ok { background: #2E9B4F; }
+.pbi-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pbi input[type="date"] { font: inherit; font-size: 14px; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; }
+.pbi input[type="date"]:hover { border-color: var(--muted); }
+.pbi code { font-family: ui-monospace, Consolas, 'Courier New', monospace; font-size: 12.5px; background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
+.pbi-ris { margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); font-size: 14px; display: grid; gap: 6px; overflow-wrap: anywhere; }
+.pbi-ris.err { border-color: #C62828; }
+.pbi-ris.ok { border-color: #2E9B4F; }
+.pbi-ris dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 16px; margin: 0; }
+.pbi-ris dt { color: var(--muted); }
+.pbi-ris dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pbi details summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.pbi details .stack { margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -317,6 +334,40 @@ kbd {
         </div>
       </fieldset>
 
+      <fieldset class="pbi" id="pbi">
+        <legend>Power BI</legend>
+        <div class="stack">
+          <div class="field-head">
+            <span class="big-label">COLLEGAMENTO</span>
+            <span class="pbi-stato"><span class="pbi-dot" id="pbi-dot"></span><span id="pbi-stato">Non collegato</span></span>
+          </div>
+          <div class="field">
+            <label for="pbi-client">ID applicazione (client) della registrazione in Entra</label>
+            <input type="text" id="pbi-client" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="00000000-0000-0000-0000-000000000000">
+            <p class="hint">Indirizzo di ritorno da registrare in Entra come «Applicazione a pagina singola (SPA)»: <code id="pbi-redirect"></code></p>
+          </div>
+          <div class="pbi-row">
+            <button type="button" class="btn primary" id="pbi-login">Accedi con Microsoft</button>
+            <button type="button" class="btn" id="pbi-logout" hidden>Esci</button>
+          </div>
+          <div class="pbi-row">
+            <label class="flabel" for="pbi-data">Giorno</label>
+            <input type="date" id="pbi-data">
+            <button type="button" class="btn" id="pbi-prova" disabled>Prova collegamento</button>
+          </div>
+          <div class="pbi-ris" id="pbi-ris" role="status" aria-live="polite" hidden></div>
+          <p class="hint">L'accesso è il tuo account Microsoft: nella pagina non viene salvata nessuna password. Si apre in una finestrella, quindi gli screenshot già incollati restano al loro posto.</p>
+          <details>
+            <summary>Avanzate</summary>
+            <div class="stack">
+              <div class="field"><label for="pbi-tenant">ID del tenant</label><input type="text" id="pbi-tenant" spellcheck="false" autocapitalize="off" autocomplete="off"></div>
+              <div class="field"><label for="pbi-group">ID dell'area di lavoro</label><input type="text" id="pbi-group" spellcheck="false" autocapitalize="off" autocomplete="off"></div>
+              <div class="field"><label for="pbi-report">ID del report</label><input type="text" id="pbi-report" spellcheck="false" autocapitalize="off" autocomplete="off"></div>
+            </div>
+          </details>
+        </div>
+      </fieldset>
+
       <button type="button" class="link" id="reset">Ripristina predefiniti</button>
     </form>
 
@@ -362,7 +413,27 @@ kbd {
 </div>
 
 <script>
+// Ritorno dall'accesso Microsoft: questa pagina, riaperta nella finestrella di accesso, consegna il codice alla pagina principale e si chiude
 (function () {
+  var q;
+  try { q = new URLSearchParams(location.search); } catch (e) { return; }
+  var st = q.get('state') || '';
+  if (st.indexOf('dimail.') !== 0 || (!q.get('code') && !q.get('error'))) return;
+  window.__dimailRitorno = true;
+  var m = { state: st, code: q.get('code') || '', error: q.get('error') || '', error_description: q.get('error_description') || '' };
+  try { localStorage.setItem('dimail-pbi-ritorno', JSON.stringify(m)); } catch (e) {}
+  try { if (window.opener) window.opener.postMessage({ dimailPbi: m }, location.origin); } catch (e) {}
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}
+  document.addEventListener('DOMContentLoaded', function () {
+    document.body.innerHTML = '<p style="font:16px/1.5 Montserrat,\'Segoe UI\',Tahoma,sans-serif;padding:32px;text-align:center">Accesso completato. Puoi chiudere questa finestra.</p>';
+  });
+  setTimeout(function () { try { window.close(); } catch (e) {} }, 150);
+})();
+</script>
+
+<script>
+(function () {
+  if (window.__dimailRitorno) return; // finestrella di ritorno dall'accesso Microsoft: qui la pagina non parte
   var KEY = 'proforma-mail-v2', KEY_OLD = 'proforma-mail-v1';
 
   // I report: stessa struttura, contenuti e screenshot separati
@@ -1052,6 +1123,302 @@ kbd {
     update();
     toast('Valori predefiniti ripristinati per ' + modello(attivo).nome + '.');
   });
+
+  // ---- Collegamento a Power BI ----
+  // L'utente accede con il proprio account Microsoft in una finestrella (flusso con codice e PKCE: nella pagina non c'è
+  // nessuna chiave) e la pagina legge i valori delle misure direttamente dal modello del report, con una query DAX.
+  var PBI_KEY = 'dimail-pbi-v1', PBI_TOK = 'dimail-pbi-token', PBI_RIT = 'dimail-pbi-ritorno';
+  var PBI_DEF = {
+    clientId: '',
+    tenant: '1bdd4a8e-d6c3-4c76-9a07-49d62043dd51',
+    group: 'e51a4a64-f6b8-451b-86bf-b2827ab4b88a',
+    report: 'c868b62d-258a-4a3f-a790-d7d0164fb2a1',
+    dataset: ''
+  };
+  var PBI_SCOPE = 'https://analysis.windows.net/powerbi/api/Dataset.Read.All https://analysis.windows.net/powerbi/api/Report.Read.All offline_access openid profile';
+  var GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  // Valori letti dalla prova: gli stessi quattro indicatori in alto nel Pannello di Controllo, per il giorno scelto
+  var PBI_PROVA = [
+    { k: 'Stabilimento', m: '[Efficienza_Stabilimento]' },
+    { k: 'Assemblaggi', m: '[Efficienza]' },
+    { k: 'Flusso Amont', m: '[GlobFA]' },
+    { k: 'Efficacia', m: '[Efficacia]' }
+  ];
+
+  var pbi = clone(PBI_DEF);
+  try {
+    var pbiSalvato = JSON.parse(localStorage.getItem(PBI_KEY) || 'null');
+    if (pbiSalvato && typeof pbiSalvato === 'object') {
+      Object.keys(PBI_DEF).forEach(function (k) { if (typeof pbiSalvato[k] === 'string' && pbiSalvato[k]) pbi[k] = pbiSalvato[k]; });
+    }
+  } catch (e) {}
+  var pbiTok = null;
+  try { pbiTok = JSON.parse(sessionStorage.getItem(PBI_TOK) || 'null'); } catch (e) { pbiTok = null; }
+  if (!pbiTok || typeof pbiTok.access !== 'string') pbiTok = null;
+
+  function pbiSalva() { try { localStorage.setItem(PBI_KEY, JSON.stringify(pbi)); } catch (e) {} }
+  function pbiSalvaTok() {
+    try { if (pbiTok) sessionStorage.setItem(PBI_TOK, JSON.stringify(pbiTok)); else sessionStorage.removeItem(PBI_TOK); } catch (e) {}
+  }
+  // L'indirizzo di questa pagina, senza la parte dopo # e senza "index.html": è quello da registrare in Entra
+  function pbiRedirect() { return location.origin + location.pathname.replace(/index\.html$/i, ''); }
+  function b64url(buf) {
+    var s = '', a = new Uint8Array(buf);
+    for (var i = 0; i < a.length; i++) s += String.fromCharCode(a[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function casuale(n) { var a = new Uint8Array(n); crypto.getRandomValues(a); return b64url(a); }
+  function nomeUtente(idToken) {
+    try {
+      var p = String(idToken).split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      var j = JSON.parse(decodeURIComponent(escape(atob(p))));
+      return String(j.preferred_username || j.name || '');
+    } catch (e) { return ''; }
+  }
+
+  function pbiEsito(tipo, testo, valori) {
+    var el = $('#pbi-ris');
+    el.hidden = false;
+    el.className = 'pbi-ris' + (tipo === 'err' ? ' err' : tipo === 'ok' ? ' ok' : '');
+    el.textContent = '';
+    var p = document.createElement('div');
+    p.textContent = testo;
+    el.appendChild(p);
+    if (valori && valori.length) {
+      var dl = document.createElement('dl');
+      valori.forEach(function (v) {
+        var dt = document.createElement('dt'), dd = document.createElement('dd');
+        dt.textContent = v[0]; dd.textContent = v[1];
+        dl.appendChild(dt); dl.appendChild(dd);
+      });
+      el.appendChild(dl);
+    }
+  }
+  function pbiDisegna() {
+    var dentro = !!pbiTok;
+    $('#pbi-dot').className = 'pbi-dot' + (dentro ? ' ok' : '');
+    $('#pbi-stato').textContent = dentro ? ('Collegato' + (pbiTok.utente ? ' come ' + pbiTok.utente : '')) : 'Non collegato';
+    $('#pbi-login').hidden = dentro;
+    $('#pbi-logout').hidden = !dentro;
+    $('#pbi-prova').disabled = !dentro || pbiOccupato;
+  }
+
+  function spiegaAccesso(codice, descr) {
+    var t = String(descr || codice || '');
+    if (/AADSTS9002326/.test(t)) return 'In Entra l\'indirizzo di ritorno è registrato come «Web»: va registrato come «Applicazione a pagina singola (SPA)».';
+    if (/AADSTS50011/.test(t)) return 'L\'indirizzo di ritorno registrato in Entra non coincide con questa pagina. Deve essere esattamente: ' + pbiRedirect();
+    if (/AADSTS700016/.test(t)) return 'ID applicazione non trovato in questo tenant: controlla di averlo copiato per intero.';
+    if (/AADSTS90002|AADSTS900023/.test(t)) return 'ID del tenant non valido: controllalo in «Avanzate».';
+    if (/AADSTS65001|AADSTS90094|AADSTS650057|consent_required/.test(t)) return 'I permessi dell\'applicazione vanno approvati da chi amministra Microsoft 365 («Concedi consenso amministratore» nella registrazione in Entra).';
+    if (codice === 'access_denied') return 'Accesso annullato.';
+    return 'Accesso non riuscito: ' + (t.split(/\r?\n/)[0].slice(0, 300) || 'errore sconosciuto') + '.';
+  }
+  function spiegaApi(x) {
+    var det = '';
+    try {
+      var e = x.j && x.j.error;
+      if (e) det = [e.code, e.message, e['pbi.error'] && e['pbi.error'].code].filter(Boolean).join(' · ');
+    } catch (err) {}
+    if (!det) det = String(x.t || '').slice(0, 200);
+    var coda = det ? ' Dettaglio: ' + det.slice(0, 400) : '';
+    if (x.status === 401) return 'Power BI non ha accettato l\'accesso (401). Premi «Esci» e accedi di nuovo.' + coda;
+    if (x.status === 403) return 'Power BI ha rifiutato la richiesta (403): il tuo account non ha i permessi di lettura e build su questo modello, oppure l\'amministratore deve attivare l\'impostazione «Semantic Model Execute Queries REST API».' + coda;
+    if (x.status === 404) return 'Report o area di lavoro non trovati (404): controlla gli ID in «Avanzate» e che il tuo account veda quel report.' + coda;
+    if (x.status === 429) return 'Troppe richieste in poco tempo: riprova tra un minuto.';
+    return 'Power BI ha risposto con un errore (' + x.status + ').' + coda;
+  }
+
+  function pbiToken(extra) {
+    var corpo = new URLSearchParams(Object.assign({ client_id: pbi.clientId.trim(), scope: PBI_SCOPE }, extra));
+    return fetch('https://login.microsoftonline.com/' + encodeURIComponent(pbi.tenant.trim()) + '/oauth2/v2.0/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: corpo.toString()
+    }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, j: j || {} }; }, function () { return { ok: false, j: {} }; });
+    }, function () {
+      throw new Error('Non riesco a raggiungere il servizio di accesso Microsoft. Controlla la connessione e riprova.');
+    }).then(function (x) {
+      if (!x.ok || !x.j.access_token) throw new Error(spiegaAccesso(x.j.error, x.j.error_description));
+      pbiTok = {
+        access: x.j.access_token,
+        refresh: x.j.refresh_token || (pbiTok && pbiTok.refresh) || '',
+        scade: Date.now() + (Number(x.j.expires_in) || 3600) * 1000,
+        utente: nomeUtente(x.j.id_token || '') || (pbiTok && pbiTok.utente) || ''
+      };
+      pbiSalvaTok();
+      return pbiTok.access;
+    });
+  }
+  // Token valido per le chiamate: se sta per scadere viene rinnovato senza riaprire la finestra di accesso
+  function pbiAccesso() {
+    if (!pbiTok) return Promise.reject(new Error('Non sei collegato: premi «Accedi con Microsoft».'));
+    if (pbiTok.scade - Date.now() > 60000) return Promise.resolve(pbiTok.access);
+    var scaduto = function () {
+      pbiTok = null; pbiSalvaTok(); pbiDisegna();
+      throw new Error('L\'accesso è scaduto: premi di nuovo «Accedi con Microsoft».');
+    };
+    if (!pbiTok.refresh) { try { scaduto(); } catch (e) { return Promise.reject(e); } }
+    return pbiToken({ grant_type: 'refresh_token', refresh_token: pbiTok.refresh }).catch(scaduto);
+  }
+  function pbiApi(percorso, corpo) {
+    return pbiAccesso().then(function (tok) {
+      var opz = { method: corpo ? 'POST' : 'GET', headers: { Authorization: 'Bearer ' + tok } };
+      if (corpo) { opz.headers['Content-Type'] = 'application/json'; opz.body = JSON.stringify(corpo); }
+      return fetch('https://api.powerbi.com/v1.0/myorg/' + percorso, opz).then(function (r) {
+        return r.text().then(function (t) {
+          var j = null;
+          try { j = t ? JSON.parse(t) : null; } catch (e) {}
+          return { status: r.status, ok: r.ok, j: j, t: t };
+        });
+      }, function () {
+        throw new Error('Non riesco a raggiungere Power BI. Controlla la connessione e riprova.');
+      });
+    }).then(function (x) {
+      if (x.ok) return x.j;
+      throw new Error(spiegaApi(x));
+    });
+  }
+  // Il modello dietro il report: si ricava una volta dal report e resta salvato
+  function pbiDataset() {
+    if (GUID.test(pbi.dataset)) return Promise.resolve(pbi.dataset);
+    return pbiApi('groups/' + encodeURIComponent(pbi.group.trim()) + '/reports/' + encodeURIComponent(pbi.report.trim())).then(function (r) {
+      if (!r || !GUID.test(String(r.datasetId || ''))) throw new Error('Power BI non ha indicato il modello di questo report.');
+      pbi.dataset = r.datasetId;
+      pbi.nomeReport = String(r.name || '');
+      pbiSalva();
+      return pbi.dataset;
+    });
+  }
+  // Esegue una query DAX sul modello e restituisce le righe della prima tabella
+  function pbiQuery(dax) {
+    return pbiDataset().then(function (ds) {
+      return pbiApi('groups/' + encodeURIComponent(pbi.group.trim()) + '/datasets/' + ds + '/executeQueries', {
+        queries: [{ query: dax }], serializerSettings: { includeNulls: true }
+      });
+    }).then(function (j) {
+      var ris = j && j.results && j.results[0];
+      if (ris && ris.error) throw new Error('La query non è riuscita. Dettaglio: ' + String(ris.error.message || ris.error.code || '').slice(0, 400));
+      var t = ris && ris.tables && ris.tables[0];
+      if (!t) throw new Error('Power BI ha risposto senza dati.');
+      return t.rows || [];
+    });
+  }
+
+  var pbiAttesa = null; // accesso in corso: { state, verifier, win, timer }
+  function pbiFineAttesa() {
+    if (pbiAttesa && pbiAttesa.timer) clearInterval(pbiAttesa.timer);
+    pbiAttesa = null;
+  }
+  function pbiAccedi() {
+    var id = pbi.clientId.trim();
+    if (!GUID.test(id)) {
+      pbiEsito('err', 'Inserisci prima l\'ID applicazione (client): è un codice di 36 caratteri con i trattini, e lo trovi nella registrazione in Entra.');
+      $('#pbi-client').focus();
+      return;
+    }
+    if (!GUID.test(pbi.tenant.trim())) { pbiEsito('err', 'ID del tenant non valido: controllalo in «Avanzate».'); return; }
+    if (!window.crypto || !crypto.subtle || !window.fetch) { pbiEsito('err', 'Questo browser non permette l\'accesso da questa pagina: serve un browser aggiornato e un indirizzo https.'); return; }
+    // La finestrella va aperta subito, dentro il clic, altrimenti il browser la blocca
+    var w = 520, h = 660;
+    var x = Math.max(0, Math.round((window.screenX || 0) + ((window.outerWidth || w) - w) / 2));
+    var y = Math.max(0, Math.round((window.screenY || 0) + ((window.outerHeight || h) - h) / 2));
+    var win = null;
+    try { win = window.open('', 'dimail-accesso', 'popup=yes,width=' + w + ',height=' + h + ',left=' + x + ',top=' + y); } catch (e) { win = null; }
+    if (!win) { pbiEsito('err', 'Il browser ha bloccato la finestra di accesso. Consenti i popup per questo sito e riprova.'); return; }
+    pbiFineAttesa();
+    var verifier = casuale(48), state = 'dimail.' + casuale(12);
+    crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)).then(function (hash) {
+      var u = 'https://login.microsoftonline.com/' + encodeURIComponent(pbi.tenant.trim()) + '/oauth2/v2.0/authorize?' + new URLSearchParams({
+        client_id: id, response_type: 'code', redirect_uri: pbiRedirect(), response_mode: 'query', scope: PBI_SCOPE,
+        state: state, code_challenge: b64url(hash), code_challenge_method: 'S256'
+      }).toString();
+      pbiAttesa = { state: state, verifier: verifier, win: win, timer: null };
+      pbiAttesa.timer = setInterval(function () {
+        if (!pbiAttesa || pbiAttesa.state !== state) return;
+        var chiusa = true;
+        try { chiusa = pbiAttesa.win.closed; } catch (e) {}
+        if (!chiusa) return;
+        clearInterval(pbiAttesa.timer); pbiAttesa.timer = null;
+        // la risposta può arrivare un istante dopo la chiusura: il messaggio compare solo se non è arrivata
+        setTimeout(function () { if (pbiAttesa && pbiAttesa.state === state) pbiEsito('err', 'La finestra di accesso è stata chiusa prima di completare. Premi di nuovo «Accedi con Microsoft».'); }, 1500);
+      }, 500);
+      pbiEsito('info', 'Completa l\'accesso nella finestra che si è aperta.');
+      win.location.href = u;
+    }, function () {
+      try { win.close(); } catch (e) {}
+      pbiEsito('err', 'Non riesco a preparare l\'accesso in questo browser.');
+    });
+  }
+  function pbiRitorno(m) {
+    if (!m || !pbiAttesa || m.state !== pbiAttesa.state) return;
+    var att = pbiAttesa;
+    pbiFineAttesa();
+    try { localStorage.removeItem(PBI_RIT); } catch (e) {}
+    try { if (att.win && !att.win.closed) att.win.close(); } catch (e) {}
+    if (m.error || !m.code) { pbiEsito('err', spiegaAccesso(m.error, m.error_description)); return; }
+    pbiEsito('info', 'Accesso in corso…');
+    pbiToken({ grant_type: 'authorization_code', code: m.code, redirect_uri: pbiRedirect(), code_verifier: att.verifier }).then(function () {
+      pbiDisegna();
+      pbiEsito('ok', 'Accesso riuscito. Ora premi «Prova collegamento».');
+    }, function (e) {
+      pbiDisegna();
+      pbiEsito('err', e.message);
+    });
+  }
+  window.addEventListener('message', function (e) {
+    if (e.origin === location.origin && e.data && e.data.dimailPbi) pbiRitorno(e.data.dimailPbi);
+  });
+  window.addEventListener('storage', function (e) {
+    if (e.key !== PBI_RIT || !e.newValue) return;
+    try { pbiRitorno(JSON.parse(e.newValue)); } catch (x) {}
+  });
+
+  var pbiOccupato = false;
+  function pbiPerc(v) {
+    if (v === null || v === undefined || v === '' || isNaN(Number(v))) return '—';
+    return (Number(v) * 100).toFixed(2).replace('.', ',') + ' %';
+  }
+  function pbiProva() {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec($('#pbi-data').value || '');
+    if (!m) { pbiEsito('err', 'Scegli il giorno da leggere.'); $('#pbi-data').focus(); return; }
+    if (!GUID.test(pbi.group.trim()) || !GUID.test(pbi.report.trim())) { pbiEsito('err', 'ID dell\'area di lavoro o del report non valido: controllali in «Avanzate».'); return; }
+    var filtro = "'Presenze CF Worker'[Data] = DATE(" + Number(m[1]) + ', ' + Number(m[2]) + ', ' + Number(m[3]) + ')';
+    var dax = 'EVALUATE ROW(' + PBI_PROVA.map(function (p) { return '"' + p.k + '", CALCULATE(' + p.m + ', ' + filtro + ')'; }).join(', ') + ')';
+    var giorno = m[3] + '/' + m[2] + '/' + m[1];
+    pbiOccupato = true; pbiDisegna();
+    pbiEsito('info', 'Leggo i valori da Power BI…');
+    pbiQuery(dax).then(function (righe) {
+      var r = righe[0] || {};
+      var valori = PBI_PROVA.map(function (p) { return [p.k, pbiPerc(r['[' + p.k + ']'])]; });
+      var vuoto = valori.every(function (v) { return v[1] === '—'; });
+      pbiEsito(vuoto ? 'info' : 'ok', vuoto
+        ? 'Collegamento riuscito, ma per il ' + giorno + ' il modello non ha valori: prova un altro giorno.'
+        : 'Collegamento riuscito. Valori del ' + giorno + (pbi.nomeReport ? ' letti dal report «' + pbi.nomeReport + '»' : '') + ': confrontali con il Pannello di Controllo.', valori);
+    }, function (e) {
+      pbiEsito('err', e.message);
+    }).then(function () { pbiOccupato = false; pbiDisegna(); });
+  }
+
+  (function () {
+    var oggi = new Date();
+    $('#pbi-data').value = oggi.getFullYear() + '-' + ('0' + (oggi.getMonth() + 1)).slice(-2) + '-' + ('0' + oggi.getDate()).slice(-2);
+    $('#pbi-redirect').textContent = pbiRedirect();
+    var campi = { clientId: '#pbi-client', tenant: '#pbi-tenant', group: '#pbi-group', report: '#pbi-report' };
+    Object.keys(campi).forEach(function (k) {
+      $(campi[k]).value = pbi[k];
+      $(campi[k]).addEventListener('input', function (e) {
+        pbi[k] = e.target.value.trim();
+        if (k === 'group' || k === 'report') { pbi.dataset = ''; pbi.nomeReport = ''; }
+        pbiSalva();
+      });
+    });
+    $('#pbi-login').addEventListener('click', pbiAccedi);
+    $('#pbi-logout').addEventListener('click', function () {
+      pbiTok = null; pbiSalvaTok(); pbiFineAttesa(); pbiDisegna();
+      pbiEsito('info', 'Scollegato da questa pagina. L\'account Microsoft resta aperto nel browser.');
+    });
+    $('#pbi-prova').addEventListener('click', pbiProva);
+    pbiDisegna();
+  })();
 
   $('#editor').addEventListener('submit', function (e) { e.preventDefault(); });
 
