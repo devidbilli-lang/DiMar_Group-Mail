@@ -160,6 +160,12 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
   padding: 12px 10px 12px 8px; border: 2px solid transparent; border-radius: 10px;
   background: linear-gradient(var(--surface), var(--surface)) padding-box, var(--btn-grad) border-box;
 }
+/* Il titolo di ogni sezione ha lo sfondo dei pulsanti: si distingue subito dai sottotitoli */
+.sez input[id^="sez-t-"] {
+  background: var(--btn-grad) border-box; border-color: transparent; color: #FFFFFF; caret-color: #FFFFFF;
+  font-weight: 600; text-shadow: 0 1px 1px rgba(0, 0, 0, .35);
+}
+.sez input[id^="sez-t-"]::selection { background: rgba(255, 255, 255, .35); }
 .sez-opts { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .sez-n { font-family: var(--f-mono); font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
 .sez .chk { font-size: 13px; color: var(--muted); }
