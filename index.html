@@ -89,7 +89,7 @@ h1 { font-family: var(--f-display); font-weight: 600; font-size: clamp(28px, 4.2
 
 .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
 @media (min-width: 1200px) {
-  .grid { grid-template-columns: minmax(320px, 560px) minmax(0, 1fr); align-items: start; }
+  .grid { grid-template-columns: minmax(320px, 480px) minmax(0, 1fr); align-items: start; }
 }
 
 /* Editor */
@@ -113,7 +113,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-
 input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; flex: none; }
 .hint { font-size: 12.5px; color: var(--muted); margin: 0; }
 .flabel { font-size: 13px; font-weight: 500; }
-.stile { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.stile { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .big-label, .field label.big-label { font-size: 18px; font-weight: 700; letter-spacing: .04em; line-height: 1.2; }
 .field-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin-bottom: 2px; }
 .stile select {
@@ -121,10 +121,25 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
   background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; cursor: pointer;
 }
 .stile select:hover, .stile input[type="color"]:hover { border-color: var(--muted); }
-.stile input[type="color"] { width: 40px; height: 34px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); cursor: pointer; margin-left: 2px; }
-.swatches { display: flex; gap: 6px; align-items: center; }
-.sw { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line); padding: 0; cursor: pointer; }
+.stile input[type="color"] { width: 40px; height: 34px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); cursor: pointer; }
+.colbtn {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 8px; margin-left: 2px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--field); color: var(--muted);
+  font: inherit; font-size: 10px; cursor: pointer;
+}
+.colbtn:hover { border-color: var(--muted); color: var(--fg); }
+.chip { width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--line); }
+.pal {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 15; width: 268px; max-width: calc(100vw - 32px);
+  display: grid; gap: 10px; padding: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+}
+.pal-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+.sw { width: 100%; aspect-ratio: 1; border-radius: 4px; border: 1px solid var(--line); padding: 0; cursor: pointer; }
+.sw:hover { transform: scale(1.12); }
 .sw[aria-pressed="true"] { outline: 2px solid var(--fg); outline-offset: 2px; }
+.altro { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
+@media (prefers-reduced-motion: reduce) { .sw:hover { transform: none; } }
 .unit { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
 
 #sezioni { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
@@ -437,7 +452,12 @@ kbd {
     chiusuraSize: TESTO,
     sottoSize: TESTO
   };
-  var COLORI = [['#26221E', 'Scuro'], ['#6B655C', 'Grigio'], ['#1F4FD8', 'Blu'], ['#C62828', 'Rosso'], ['#2E7D32', 'Verde']];
+  var COLORI = [
+    '#000000', '#26221E', '#3A3A3A', '#4A443D', '#6B655C', '#808080', '#9A9A9A', '#B8B8B8',
+    '#C62828', '#E65100', '#F9A825', '#2E7D32', '#00796B', '#1F4FD8', '#6A1B9A', '#C2185B',
+    '#8E0000', '#A84300', '#9A6B00', '#1B5E20', '#004D40', '#0D2F8A', '#4A148C', '#880E4F',
+    '#EF5350', '#FF8A3D', '#F4C20D', '#66BB6A', '#26A69A', '#5C8DF6', '#AB6BD6', '#EC6FA0'
+  ];
   function sz(k) { var v = Number(state[k]); return SIZES[k].indexOf(v) !== -1 ? v : DEFS[attivo][k]; }
   function col(k) { var v = String(state[k] || ''); return /^#[0-9a-fA-F]{6}$/.test(v) ? v.toUpperCase() : DEFS[attivo][k]; }
 
@@ -699,7 +719,15 @@ kbd {
       var ks = g.getAttribute('data-size'), kc = g.getAttribute('data-color'), c = col(kc);
       g.querySelector('select').value = String(sz(ks));
       g.querySelector('input[type="color"]').value = c.toLowerCase();
+      g.querySelector('.chip').style.background = c;
       g.querySelectorAll('.sw').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-c') === c)); });
+    });
+  }
+  function chiudiTavolozze(tranne) {
+    document.querySelectorAll('.pal').forEach(function (p) {
+      if (p === tranne || p.hidden) return;
+      p.hidden = true;
+      p.parentNode.querySelector('.colbtn').setAttribute('aria-expanded', 'false');
     });
   }
   document.querySelectorAll('.stile').forEach(function (g) {
@@ -708,15 +736,48 @@ kbd {
       '<select id="' + ks + '" aria-label="Grandezza ' + nome + '">' +
         SIZES[ks].map(function (v) { return '<option value="' + v + '">' + v + '</option>'; }).join('') +
       '</select><span class="unit">px</span>' +
-      '<input type="color" id="' + kc + '" aria-label="Colore ' + nome + '" title="Scegli un altro colore">' +
-      '<span class="swatches">' +
-        COLORI.map(function (c) { return '<button type="button" class="sw" data-c="' + c[0] + '" aria-label="' + c[1] + '" title="' + c[1] + '" aria-pressed="false" style="background:' + c[0] + '"></button>'; }).join('') +
-      '</span>';
+      '<button type="button" class="colbtn" aria-haspopup="true" aria-expanded="false" aria-label="Colore ' + nome + '" title="Scegli il colore"><span class="chip"></span><span aria-hidden="true">▼</span></button>' +
+      '<div class="pal" hidden>' +
+        '<div class="pal-grid">' +
+          COLORI.map(function (c) { return '<button type="button" class="sw" data-c="' + c + '" aria-label="Colore ' + c + '" title="' + c + '" aria-pressed="false" style="background:' + c + '"></button>'; }).join('') +
+        '</div>' +
+        '<label class="altro" for="' + kc + '">Altro colore<input type="color" id="' + kc + '"></label>' +
+      '</div>';
+    var btn = g.querySelector('.colbtn'), pal = g.querySelector('.pal');
+    btn.addEventListener('click', function () {
+      var apri = pal.hidden;
+      chiudiTavolozze(pal);
+      pal.hidden = !apri;
+      btn.setAttribute('aria-expanded', String(apri));
+      if (!apri) return;
+      // tiene la tavolozza dentro lo schermo
+      pal.style.right = '0'; pal.style.left = 'auto';
+      var r = pal.getBoundingClientRect();
+      if (r.left < 8) {
+        pal.style.right = 'auto'; pal.style.left = '0';
+        r = pal.getBoundingClientRect();
+        if (r.right > window.innerWidth - 8) pal.style.left = (window.innerWidth - 8 - r.right) + 'px';
+      }
+    });
     g.querySelector('select').addEventListener('change', function (e) { state[ks] = Number(e.target.value); update(); });
     g.querySelector('input[type="color"]').addEventListener('input', function (e) { state[kc] = e.target.value.toUpperCase(); fillFields(); update(); });
     g.querySelectorAll('.sw').forEach(function (b) {
-      b.addEventListener('click', function () { state[kc] = b.getAttribute('data-c'); fillFields(); update(); });
+      b.addEventListener('click', function () {
+        state[kc] = b.getAttribute('data-c');
+        fillFields();
+        update();
+        chiudiTavolozze();
+        btn.focus();
+      });
     });
+  });
+  document.addEventListener('click', function (e) { if (!e.target.closest || !e.target.closest('.stile')) chiudiTavolozze(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var aperta = document.querySelector('.pal:not([hidden])');
+    if (!aperta) return;
+    chiudiTavolozze();
+    aperta.parentNode.querySelector('.colbtn').focus();
   });
   Object.keys(FIELDS).forEach(function (k) {
     $(FIELDS[k]).addEventListener('input', function (e) { state[k] = e.target.value; update(); });
