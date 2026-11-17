@@ -358,11 +358,20 @@ kbd {
             <button type="button" class="btn" id="pbi-prova" disabled>Prova collegamento</button>
           </div>
           <div class="pbi-row">
+            <label class="flabel" for="pbi-cosa">Contenuto</label>
+            <select id="pbi-cosa">
+              <option value="tutto">Pannello completo</option>
+              <option value="ind">Solo i quattro indicatori</option>
+              <option value="linee">Solo le linee di assemblaggio</option>
+              <option value="reparti">Solo i reparti del Flusso Amont</option>
+            </select>
+          </div>
+          <div class="pbi-row">
             <label class="flabel" for="pbi-box">Riquadro</label>
             <select id="pbi-box"></select>
             <button type="button" class="btn primary" id="pbi-compila" disabled>Compila da Power BI</button>
           </div>
-          <p class="hint">«Compila» disegna nel riquadro scelto i quattro indicatori del Pannello di Controllo (Stabilimento, Assemblaggi, Flusso Amont, Efficacia) con i valori del giorno.</p>
+          <p class="hint">«Compila» ridisegna nel riquadro scelto il Pannello di Controllo con i valori del giorno: indicatori, linee di assemblaggio e reparti del Flusso Amont.</p>
           <div class="pbi-ris" id="pbi-ris" role="status" aria-live="polite" hidden></div>
           <p class="hint">L'accesso è il tuo account Microsoft: nella pagina non viene salvata nessuna password. Si apre in una finestrella, quindi gli screenshot già incollati restano al loro posto.</p>
           <details>
@@ -1149,6 +1158,25 @@ kbd {
   // Valori letti dalla prova: gli stessi quattro indicatori in alto nel Pannello di Controllo, per il giorno scelto
   var PBI_NON_STABILIMENTO = ['Mazzei', 'Track&Trace', 'Flacca'];
   var PBI_NON_ASSEMBLAGGI = ['Preparazione DG', 'RMA', 'Taglio DG', 'Tingitura', 'Track&Trace', 'Mazzei', 'Flacca'];
+  // Card delle linee di assemblaggio, nell'ordine in cui vengono disegnate: t = titolo, l = valori di 'Presenze CF Worker'[Nome Linea]
+  var PBI_LINEE = [
+    { t: 'Sara Visintin', l: ['Sara Visintin'] },
+    { t: 'Francesca Odorico', l: ['Francesca Odorico'] },
+    { t: 'Mario Todini', l: ['Mario Todini'] },
+    { t: 'Mario Todini 2.0 + Andrea Bianchi 2.0', l: ['Mario Todini 2.0', 'Andrea Bianchi 2.0'] },
+    { t: 'Giorgia Strada', l: ['Giorgia Strada'] },
+    { t: 'Andrea Bianchi', l: ['Andrea Bianchi'] },
+    { t: 'Renato Cionco', l: ['Renato Cionco'] },
+    { t: 'Sonia Bandiera', l: ['Sonia Bandiera'] },
+    { t: 'Gian Marco Di Virginio', l: ['Gian Marco Di Virginio'] }
+  ];
+  // Reparti del Flusso Amont
+  var PBI_REPARTI = [
+    { t: 'Taglio', m: "'capacityLedgerEntryAPI'[Efficienza_TG]" },
+    { t: 'Preparazione', m: "'capacityLedgerEntryAPI'[Efficienza_Prep]" },
+    { t: 'Tingitura CC', m: "'capacityLedgerEntryAPI'[Efficienza_TING]" },
+    { t: 'RMA', m: "'capacityLedgerEntryAPI'[Efficienza_RMA]" }
+  ];
   var PBI_PROVA = [
     { k: 'Stabilimento', m: "'Presenze CF Worker'[Efficienza_Stabilimento]", f: '__LineeStabilimento' },
     { k: 'Assemblaggi', m: "'Qualità CF Worker'[Efficienza]", f: '__LineeAssemblaggi' },
@@ -1396,38 +1424,67 @@ kbd {
     if (!GUID.test(pbi.group.trim()) || !GUID.test(pbi.report.trim())) { pbiEsito('err', 'ID dell\'area di lavoro o del report non valido: controllali in «Avanzate».'); return null; }
     return { a: Number(m[1]), m: Number(m[2]), g: Number(m[3]), testo: m[3] + '/' + m[2] + '/' + m[1] };
   }
-  // Legge dal modello i quattro indicatori del giorno: [{ k: nome, v: numero oppure null }]
+  // Legge dal modello tutti i valori del giorno con una sola query:
+  // { ind: [{ k, v }], linee: [{ t, eff, efc }], reparti: [{ t, v }] } — ogni valore è un numero oppure null
   function pbiLeggi(giorno) {
     // Stessi filtri degli oggetti visivi del Pannello di Controllo (presi da «Copia query» dell'Analizzatore prestazioni):
-    // il giorno come filtro di pagina; Stabilimento e Assemblaggi escludono ciascuno un proprio elenco di linee
+    // il giorno come filtro di pagina; Stabilimento e Assemblaggi escludono ciascuno un proprio elenco di linee;
+    // ogni card filtra le proprie linee; i reparti del Flusso Amont hanno solo il giorno
+    function elenco(linee) { return '{' + linee.map(function (n) { return '"' + n.replace(/"/g, '""') + '"'; }).join(', ') + '}'; }
     function escluse(nome, linee) {
-      return 'VAR ' + nome + " = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Nome Linea])), NOT('Presenze CF Worker'[Nome Linea] IN {"
-        + linee.map(function (n) { return '"' + n.replace(/"/g, '""') + '"'; }).join(', ') + '}))\n';
+      return 'VAR ' + nome + " = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Nome Linea])), NOT('Presenze CF Worker'[Nome Linea] IN " + elenco(linee) + '))\n';
     }
+    var col = [];
+    PBI_PROVA.forEach(function (p) { col.push([p.k, 'CALCULATE(' + p.m + ', __Giorno' + (p.f ? ', ' + p.f : '') + ')']); });
+    PBI_LINEE.forEach(function (c, n) {
+      var f = "TREATAS(" + elenco(c.l) + ", 'Presenze CF Worker'[Nome Linea])";
+      col.push(['L' + n + 'E', "CALCULATE('Qualità CF Worker'[Efficienza], __Giorno, " + f + ')']);
+      col.push(['L' + n + 'C', "CALCULATE('Qualità CF Worker'[Efficacia], __Giorno, " + f + ')']);
+    });
+    PBI_REPARTI.forEach(function (r, n) { col.push(['R' + n, 'CALCULATE(' + r.m + ', __Giorno)']); });
     var dax = 'DEFINE\n'
       + "VAR __Giorno = TREATAS({DATE(" + giorno.a + ', ' + giorno.m + ', ' + giorno.g + ")}, 'Presenze CF Worker'[Data])\n"
       + escluse('__LineeStabilimento', PBI_NON_STABILIMENTO)
       + escluse('__LineeAssemblaggi', PBI_NON_ASSEMBLAGGI)
-      + 'EVALUATE ROW(' + PBI_PROVA.map(function (p) { return '"' + p.k + '", CALCULATE(' + p.m + ', __Giorno' + (p.f ? ', ' + p.f : '') + ')'; }).join(', ') + ')';
+      + 'EVALUATE ROW(\n' + col.map(function (c) { return '"' + c[0] + '", ' + c[1]; }).join(',\n') + '\n)';
     return pbiQuery(dax).then(function (righe) {
       var r = righe[0] || {};
-      return PBI_PROVA.map(function (p) {
-        var v = r['[' + p.k + ']'];
-        return { k: p.k, v: (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v) };
-      });
+      function num(id) {
+        var v = r['[' + id + ']'];
+        return (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);
+      }
+      return {
+        ind: PBI_PROVA.map(function (p) { return { k: p.k, v: num(p.k) }; }),
+        linee: PBI_LINEE.map(function (c, n) { return { t: c.t, eff: num('L' + n + 'E'), efc: num('L' + n + 'C') }; }),
+        reparti: PBI_REPARTI.map(function (x, n) { return { t: x.t, v: num('R' + n) }; })
+      };
     });
+  }
+  // I valori letti, per l'elenco di controllo sotto i pulsanti; «cosa» limita l'elenco alla parte disegnata
+  function pbiElenco(d, cosa) {
+    var v = [];
+    if (!cosa || cosa === 'tutto' || cosa === 'ind') d.ind.forEach(function (x) { v.push([x.k, pbiPerc(x.v)]); });
+    if (!cosa || cosa === 'tutto' || cosa === 'linee') d.linee.forEach(function (x) { v.push([x.t, 'Efficienza ' + pbiPerc(x.eff) + ' · Efficacia ' + pbiPerc(x.efc)]); });
+    if (!cosa || cosa === 'tutto' || cosa === 'reparti') d.reparti.forEach(function (x) { v.push([x.t, pbiPerc(x.v)]); });
+    return v;
+  }
+  function pbiVuoto(d, cosa) {
+    var n = [];
+    if (!cosa || cosa === 'tutto' || cosa === 'ind') d.ind.forEach(function (x) { n.push(x.v); });
+    if (!cosa || cosa === 'tutto' || cosa === 'linee') d.linee.forEach(function (x) { n.push(x.eff, x.efc); });
+    if (!cosa || cosa === 'tutto' || cosa === 'reparti') d.reparti.forEach(function (x) { n.push(x.v); });
+    return n.every(function (x) { return x === null; });
   }
   function pbiProva() {
     var giorno = pbiGiorno();
     if (!giorno) return;
     pbiOccupato = true; pbiDisegna();
     pbiEsito('info', 'Leggo i valori da Power BI…');
-    pbiLeggi(giorno).then(function (letti) {
-      var valori = letti.map(function (x) { return [x.k, pbiPerc(x.v)]; });
-      var vuoto = letti.every(function (x) { return x.v === null; });
+    pbiLeggi(giorno).then(function (d) {
+      var vuoto = pbiVuoto(d);
       pbiEsito(vuoto ? 'info' : 'ok', vuoto
         ? 'Collegamento riuscito, ma per il ' + giorno.testo + ' il modello non ha valori: prova un altro giorno.'
-        : 'Collegamento riuscito. Valori del ' + giorno.testo + (pbi.nomeReport ? ' letti dal report «' + pbi.nomeReport + '»' : '') + ': confrontali con il Pannello di Controllo.', valori);
+        : 'Collegamento riuscito. Valori del ' + giorno.testo + (pbi.nomeReport ? ' letti dal report «' + pbi.nomeReport + '»' : '') + ': confrontali con il Pannello di Controllo.', pbiElenco(d));
     }, function (e) {
       pbiEsito('err', e.message);
     }).then(function () { pbiOccupato = false; pbiDisegna(); });
@@ -1456,55 +1513,132 @@ kbd {
     $('#pbi-compila').disabled = !pbiTok || pbiOccupato || attivo !== 'eff';
   }
 
-  // Ridisegna la fascia alta del Pannello di Controllo: quattro riquadri scuri con l'indicatore a semicerchio
+  // Ridisegna il Pannello di Controllo su una tela larga quanto il riquadro della mail (a densità doppia).
+  // cosa: 'tutto' | 'ind' (i quattro indicatori) | 'linee' (card delle linee) | 'reparti' (Flusso Amont)
   var PBI_COLORI = { 'Stabilimento': '#F2B84B', 'Assemblaggi': '#4CC2E0', 'Flusso Amont': '#F07F9C', 'Efficacia': '#A58BF5' };
-  function pbiImmagine(letti, giorno) {
-    var S = 2, W = BOX_W, M = 4, G = 4, TH = 162, PIEDE = 26, H = M + TH + PIEDE;
-    var c = document.createElement('canvas');
-    c.width = W * S; c.height = H * S;
-    var x = c.getContext('2d');
-    x.scale(S, S);
+  function pbiImmagine(d, giorno, cosa) {
+    var S = 2, W = BOX_W, M = 4, G = 4, PIEDE = 26;
     var F = 'Tahoma, Verdana, "Segoe UI", Arial, sans-serif';
-    x.fillStyle = '#0B1220'; x.fillRect(0, 0, W, H);
-    var tw = (W - 2 * M - 3 * G) / 4;
-    letti.forEach(function (it, i) {
-      var tx = M + i * (tw + G), ty = M, col_ = PBI_COLORI[it.k] || '#FFFFFF';
-      // riquadro
+    var SFONDO = '#0B1220', TESSERA = '#131C2E', BORDO = '#1D2A42', CHIARO = '#E8ECF4', TENUE = '#A9B3C6', TRACCIA = '#F3F2F1';
+    var x; // contesto, assegnato dopo aver calcolato l'altezza
+    function perc(v) { return v === null ? '--' : Math.round(v * 100) + '%'; }
+    function tessera(tx, ty, tw, th) {
       var r = 7;
       x.beginPath();
       x.moveTo(tx + r, ty); x.lineTo(tx + tw - r, ty); x.quadraticCurveTo(tx + tw, ty, tx + tw, ty + r);
-      x.lineTo(tx + tw, ty + TH - r); x.quadraticCurveTo(tx + tw, ty + TH, tx + tw - r, ty + TH);
-      x.lineTo(tx + r, ty + TH); x.quadraticCurveTo(tx, ty + TH, tx, ty + TH - r);
+      x.lineTo(tx + tw, ty + th - r); x.quadraticCurveTo(tx + tw, ty + th, tx + tw - r, ty + th);
+      x.lineTo(tx + r, ty + th); x.quadraticCurveTo(tx, ty + th, tx, ty + th - r);
       x.lineTo(tx, ty + r); x.quadraticCurveTo(tx, ty, tx + r, ty);
-      x.fillStyle = '#131C2E'; x.fill();
-      x.lineWidth = 1; x.strokeStyle = '#1D2A42'; x.stroke();
-      // titolo
-      x.fillStyle = col_; x.textAlign = 'center'; x.textBaseline = 'alphabetic';
-      x.font = 'bold 17px ' + F;
-      x.fillText(it.k, tx + tw / 2, ty + 18);
-      // semicerchio: fondo chiaro e parte colorata in proporzione al valore (ferma al 100 %)
-      var cx = tx + tw / 2, cy = ty + 138, R = 94, LW = 34;
-      x.lineWidth = LW; x.lineCap = 'butt';
-      x.strokeStyle = '#F3F2F1';
-      x.beginPath(); x.arc(cx, cy, R, Math.PI, 2 * Math.PI); x.stroke();
-      if (it.v !== null) {
-        var q = Math.max(0, Math.min(1, it.v));
-        if (q > 0) { x.strokeStyle = col_; x.beginPath(); x.arc(cx, cy, R, Math.PI, Math.PI + Math.PI * q); x.stroke(); }
-      }
-      // valore
-      x.fillStyle = col_;
-      var testoV = it.v === null ? '--' : Math.round(it.v * 100) + '%';
-      x.font = (testoV.length > 3 ? 34 : 41) + 'px ' + F;
-      x.fillText(testoV, cx, cy - 6);
-      // estremi della scala
-      x.fillStyle = '#A9B3C6'; x.font = '13px ' + F;
-      x.textAlign = 'left'; x.fillText('0%', cx - R - LW / 2, cy + 17);
-      x.textAlign = 'right'; x.fillText('100%', cx + R + LW / 2, cy + 17);
-    });
+      x.fillStyle = TESSERA; x.fill();
+      x.lineWidth = 1; x.strokeStyle = BORDO; x.stroke();
+    }
+    function etichetta(testo, colore) {
+      return { h: 24, disegna: function (y) {
+        x.fillStyle = colore; x.textAlign = 'left'; x.textBaseline = 'alphabetic';
+        x.font = 'bold 13px ' + F;
+        x.fillText(testo, M + 4, y + 17);
+      } };
+    }
+    // I quattro indicatori a semicerchio
+    function fasciaIndicatori() {
+      var TH = 162, tw = (W - 2 * M - 3 * G) / 4;
+      return { h: TH, disegna: function (y) {
+        d.ind.forEach(function (it, i) {
+          var tx = M + i * (tw + G), col_ = PBI_COLORI[it.k] || '#FFFFFF';
+          tessera(tx, y, tw, TH);
+          x.fillStyle = col_; x.textAlign = 'center'; x.textBaseline = 'alphabetic';
+          x.font = 'bold 17px ' + F;
+          x.fillText(it.k, tx + tw / 2, y + 18);
+          // semicerchio: fondo chiaro e parte colorata in proporzione al valore (ferma al 100 %)
+          var cx = tx + tw / 2, cy = y + 138, R = 94, LW = 34;
+          x.lineWidth = LW; x.lineCap = 'butt';
+          x.strokeStyle = TRACCIA;
+          x.beginPath(); x.arc(cx, cy, R, Math.PI, 2 * Math.PI); x.stroke();
+          if (it.v !== null) {
+            var q = Math.max(0, Math.min(1, it.v));
+            if (q > 0) { x.strokeStyle = col_; x.beginPath(); x.arc(cx, cy, R, Math.PI, Math.PI + Math.PI * q); x.stroke(); }
+          }
+          x.fillStyle = col_;
+          var testoV = perc(it.v);
+          x.font = (testoV.length > 3 ? 34 : 41) + 'px ' + F;
+          x.fillText(testoV, cx, cy - 6);
+          x.fillStyle = TENUE; x.font = '13px ' + F;
+          x.textAlign = 'left'; x.fillText('0%', cx - R - LW / 2, cy + 17);
+          x.textAlign = 'right'; x.fillText('100%', cx + R + LW / 2, cy + 17);
+        });
+      } };
+    }
+    // Card delle linee: nome, Efficienza ed Efficacia; cinque per riga
+    function fasciaLinee() {
+      var PER_RIGA = 5, CH = 88, cw = (W - 2 * M - (PER_RIGA - 1) * G) / PER_RIGA;
+      var righe = Math.ceil(d.linee.length / PER_RIGA);
+      return { h: righe * CH + (righe - 1) * G, disegna: function (y) {
+        d.linee.forEach(function (c, n) {
+          var tx = M + (n % PER_RIGA) * (cw + G), ty = y + Math.floor(n / PER_RIGA) * (CH + G);
+          tessera(tx, ty, cw, CH);
+          // nome: su una riga se ci sta, altrimenti spezzato in due nel punto più equilibrato
+          x.fillStyle = CHIARO; x.textAlign = 'center'; x.textBaseline = 'alphabetic';
+          x.font = 'bold 13px ' + F;
+          var largo = cw - 16, nomi = [c.t];
+          if (x.measureText(c.t).width > largo) {
+            var parole = c.t.split(' '), meglio = null;
+            for (var k = 1; k < parole.length; k++) {
+              var a = parole.slice(0, k).join(' '), b = parole.slice(k).join(' ');
+              var w = Math.max(x.measureText(a).width, x.measureText(b).width);
+              if (!meglio || w < meglio.w) meglio = { w: w, r: [a, b] };
+            }
+            if (meglio) nomi = meglio.r;
+          }
+          if (nomi.length === 1) x.fillText(nomi[0], tx + cw / 2, ty + 24, largo);
+          else { x.fillText(nomi[0], tx + cw / 2, ty + 16, largo); x.fillText(nomi[1], tx + cw / 2, ty + 31, largo); }
+          // due metà: Efficienza ed Efficacia
+          x.strokeStyle = BORDO; x.lineWidth = 1;
+          x.beginPath(); x.moveTo(tx + cw / 2, ty + 42); x.lineTo(tx + cw / 2, ty + CH - 10); x.stroke();
+          [['Efficienza', c.eff, PBI_COLORI['Assemblaggi']], ['Efficacia', c.efc, PBI_COLORI['Efficacia']]].forEach(function (m, i) {
+            var mx = tx + cw / 4 + i * cw / 2;
+            x.fillStyle = TENUE; x.font = '11px ' + F;
+            x.fillText(m[0], mx, ty + 51);
+            x.fillStyle = m[2]; x.font = '23px ' + F;
+            x.fillText(perc(m[1]), mx, ty + 77, cw / 2 - 10);
+          });
+        });
+      } };
+    }
+    // Reparti del Flusso Amont: nome, valore e barra (ferma al 100 %)
+    function fasciaReparti() {
+      var TH = 82, n = d.reparti.length, tw = (W - 2 * M - (n - 1) * G) / n, col_ = PBI_COLORI['Flusso Amont'];
+      return { h: TH, disegna: function (y) {
+        d.reparti.forEach(function (it, i) {
+          var tx = M + i * (tw + G);
+          tessera(tx, y, tw, TH);
+          x.fillStyle = col_; x.textAlign = 'center'; x.textBaseline = 'alphabetic';
+          x.font = 'bold 15px ' + F;
+          x.fillText(it.t, tx + tw / 2, y + 21);
+          x.font = '28px ' + F;
+          x.fillText(perc(it.v), tx + tw / 2, y + 55);
+          var bx = tx + 18, bw = tw - 36, by = y + 65, bh = 7;
+          x.fillStyle = TRACCIA; x.fillRect(bx, by, bw, bh);
+          if (it.v !== null) { x.fillStyle = col_; x.fillRect(bx, by, bw * Math.max(0, Math.min(1, it.v)), bh); }
+        });
+      } };
+    }
+    var parti = [];
+    if (cosa === 'tutto' || cosa === 'ind') parti.push(fasciaIndicatori());
+    if (cosa === 'tutto' || cosa === 'linee') { parti.push(etichetta('Assemblaggi · linee', PBI_COLORI['Assemblaggi'])); parti.push(fasciaLinee()); }
+    if (cosa === 'tutto' || cosa === 'reparti') { parti.push(etichetta('Flusso Amont · reparti', PBI_COLORI['Flusso Amont'])); parti.push(fasciaReparti()); }
+    var H = M + PIEDE;
+    parti.forEach(function (p, i) { H += p.h + (i ? G : 0); });
+    var c = document.createElement('canvas');
+    c.width = W * S; c.height = Math.round(H * S);
+    x = c.getContext('2d');
+    x.scale(S, S);
+    x.fillStyle = SFONDO; x.fillRect(0, 0, W, H);
+    var y = M;
+    parti.forEach(function (p, i) { if (i) y += G; p.disegna(y); y += p.h; });
     var ora = new Date();
     function due(n) { return ('0' + n).slice(-2); }
-    x.fillStyle = '#8E99AD'; x.font = '12px ' + F; x.textAlign = 'right';
-    x.fillText('Dati del ' + giorno.testo + ' · letti da Power BI il ' + due(ora.getDate()) + '/' + due(ora.getMonth() + 1) + '/' + ora.getFullYear() + ' alle ' + due(ora.getHours()) + ':' + due(ora.getMinutes()), W - M - 4, M + TH + 17);
+    x.fillStyle = '#8E99AD'; x.font = '12px ' + F; x.textAlign = 'right'; x.textBaseline = 'alphabetic';
+    x.fillText('Dati del ' + giorno.testo + ' · letti da Power BI il ' + due(ora.getDate()) + '/' + due(ora.getMonth() + 1) + '/' + ora.getFullYear() + ' alle ' + due(ora.getHours()) + ':' + due(ora.getMinutes()), W - M - 4, y + 17);
     return { src: c.toDataURL('image/png'), ratio: H / W };
   }
   function pbiCompila() {
@@ -1513,20 +1647,20 @@ kbd {
     if (!chiave || chiavi(state).indexOf(chiave) === -1) { pbiEsito('err', 'Scegli il riquadro da compilare.'); $('#pbi-box').focus(); return; }
     var giorno = pbiGiorno();
     if (!giorno) return;
+    var cosa = $('#pbi-cosa').value || 'tutto';
     var dest = imgsAll.eff, eraPieno = !!dest[chiave];
     var sel = $('#pbi-box'), nomeRiquadro = (sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : '').replace(/ \(pieno\)$/, '');
     pbiOccupato = true; pbiDisegna();
     pbiEsito('info', 'Leggo i valori da Power BI…');
-    pbiLeggi(giorno).then(function (letti) {
-      if (letti.every(function (x) { return x.v === null; })) {
+    pbiLeggi(giorno).then(function (d) {
+      if (pbiVuoto(d, cosa)) {
         pbiEsito('info', 'Per il ' + giorno.testo + ' il modello non ha valori: il riquadro non è stato toccato. Prova un altro giorno.');
         return;
       }
-      dest[chiave] = pbiImmagine(letti, giorno);
+      dest[chiave] = pbiImmagine(d, giorno, cosa);
       pbiOccupato = false;
       update();
-      pbiEsito('ok', 'Riquadro «' + nomeRiquadro + '» compilato con i valori del ' + giorno.testo + (eraPieno ? ' (ha sostituito l\'immagine che c\'era)' : '') + '.',
-        letti.map(function (x) { return [x.k, pbiPerc(x.v)]; }));
+      pbiEsito('ok', 'Riquadro «' + nomeRiquadro + '» compilato con i valori del ' + giorno.testo + (eraPieno ? ' (ha sostituito l\'immagine che c\'era)' : '') + '.', pbiElenco(d, cosa));
       toast('Riquadro compilato da Power BI.');
     }, function (e) {
       pbiEsito('err', e.message);
