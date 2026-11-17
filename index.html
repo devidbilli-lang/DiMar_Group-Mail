@@ -108,23 +108,21 @@ input[type="text"], textarea {
 }
 textarea { resize: vertical; min-height: 66px; line-height: 1.45; }
 input[type="text"]:hover, textarea:hover { border-color: var(--muted); }
-input:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .chk { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
 input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; flex: none; }
 .hint { font-size: 12.5px; color: var(--muted); margin: 0; }
 .flabel { font-size: 13px; font-weight: 500; }
-.size-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.size { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-.size input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
-.size label {
-  font-family: var(--f-mono); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums;
-  min-width: 40px; text-align: center; padding: 6px 8px; cursor: pointer;
-  background: var(--surface); color: var(--muted);
+.stile { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.stile select {
+  font: inherit; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--fg);
+  background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; cursor: pointer;
 }
-.size label:not(:first-of-type) { border-left: 1px solid var(--line); }
-.size label:hover { color: var(--fg); background: var(--field); }
-.size input:checked + label { background: var(--fg); color: var(--bg); }
-.size input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
+.stile select:hover, .stile input[type="color"]:hover { border-color: var(--muted); }
+.stile input[type="color"] { width: 40px; height: 34px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); cursor: pointer; margin-left: 6px; }
+.swatches { display: flex; gap: 7px; align-items: center; }
+.sw { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); padding: 0; cursor: pointer; }
+.sw[aria-pressed="true"] { outline: 2px solid var(--fg); outline-offset: 2px; }
 .unit { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
 
 #sezioni { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
@@ -219,11 +217,8 @@ kbd {
         <div class="stack">
           <div class="field"><label for="f-apertura">Testo di apertura</label><textarea id="f-apertura" rows="5"></textarea><p class="hint">Metti il testo tra **doppi asterischi** per il grassetto.</p></div>
           <div class="field">
-            <span class="flabel" id="lbl-asize">Grandezza testo</span>
-            <div class="size-row">
-              <div class="size" role="radiogroup" aria-labelledby="lbl-asize" data-key="aperturaSize"></div>
-              <span class="unit">px</span>
-            </div>
+            <span class="flabel">Grandezza e colore del testo</span>
+            <div class="stile" data-size="aperturaSize" data-color="aperturaColor" data-nome="apertura"></div>
           </div>
         </div>
       </fieldset>
@@ -232,19 +227,13 @@ kbd {
         <legend>Sezioni</legend>
         <div class="stack">
           <div class="field">
-            <span class="flabel" id="lbl-tsize">Grandezza titoli</span>
-            <div class="size-row">
-              <div class="size" role="radiogroup" aria-labelledby="lbl-tsize" data-key="titoli"></div>
-              <span class="unit">px</span>
-            </div>
+            <span class="flabel">Grandezza e colore dei titoli</span>
+            <div class="stile" data-size="titoli" data-color="titoliColor" data-nome="titoli"></div>
           </div>
           <label class="chk" for="f-numeri"><input type="checkbox" id="f-numeri"> Numera le sezioni</label>
           <div class="field" id="sotto-size-field" hidden>
-            <span class="flabel" id="lbl-ssize">Grandezza sottotitoli</span>
-            <div class="size-row">
-              <div class="size" role="radiogroup" aria-labelledby="lbl-ssize" data-key="sottoSize"></div>
-              <span class="unit">px</span>
-            </div>
+            <span class="flabel">Grandezza e colore dei sottotitoli</span>
+            <div class="stile" data-size="sottoSize" data-color="sottoColor" data-nome="sottotitoli"></div>
           </div>
           <ol id="sezioni"></ol>
           <button type="button" class="btn add" id="add">Aggiungi sezione</button>
@@ -256,11 +245,8 @@ kbd {
         <div class="stack">
           <div class="field"><label for="f-chiusura">Saluto finale</label><input type="text" id="f-chiusura"></div>
           <div class="field">
-            <span class="flabel" id="lbl-csize">Grandezza testo</span>
-            <div class="size-row">
-              <div class="size" role="radiogroup" aria-labelledby="lbl-csize" data-key="chiusuraSize"></div>
-              <span class="unit">px</span>
-            </div>
+            <span class="flabel">Grandezza e colore del testo</span>
+            <div class="stile" data-size="chiusuraSize" data-color="chiusuraColor" data-nome="chiusura"></div>
           </div>
         </div>
       </fieldset>
@@ -324,6 +310,10 @@ kbd {
       titoli: 16,
       chiusuraSize: 14,
       sottoSize: 14,
+      aperturaColor: '#26221E',
+      titoliColor: '#26221E',
+      sottoColor: '#4A443D',
+      chiusuraColor: '#26221E',
       sezioni: [
         { titolo: 'Sintesi della giornata', note: false },
         { titolo: 'Dettaglio reparti', note: true },
@@ -338,6 +328,10 @@ kbd {
       titoli: 16,
       chiusuraSize: 14,
       sottoSize: 14,
+      aperturaColor: '#26221E',
+      titoliColor: '#26221E',
+      sottoColor: '#4A443D',
+      chiusuraColor: '#26221E',
       sezioni: [
         { titolo: 'Aggiornamento spedizioni', sub: true, sotto: '', note: false }
       ],
@@ -375,7 +369,7 @@ kbd {
       m = clone(DEFS[M.id]);
       // un report nuovo parte con le stesse grandezze e la stessa chiusura di REPORT EFFICIENZE
       if (M.id !== 'eff' && valido(store.modelli.eff)) {
-        ['numeri', 'aperturaSize', 'titoli', 'chiusuraSize', 'chiusura'].forEach(function (k) {
+        ['numeri', 'aperturaSize', 'titoli', 'chiusuraSize', 'sottoSize', 'aperturaColor', 'titoliColor', 'sottoColor', 'chiusuraColor', 'chiusura'].forEach(function (k) {
           if (store.modelli.eff[k] !== undefined) m[k] = store.modelli.eff[k];
         });
       }
@@ -419,13 +413,16 @@ kbd {
   var FONT = 'Tahoma,Verdana,Geneva,sans-serif';
   var T = 'role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;';
 
+  var TESTO = [10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 24, 26, 28];
   var SIZES = {
-    aperturaSize: [12, 13, 14, 15, 16, 18],
-    titoli: [14, 16, 18, 20, 22, 24],
-    chiusuraSize: [12, 13, 14, 15, 16, 18],
-    sottoSize: [12, 13, 14, 15, 16, 18]
+    aperturaSize: TESTO,
+    titoli: [12, 13, 14, 15, 16, 17, 18, 20, 22, 24, 26, 28, 32, 36, 40],
+    chiusuraSize: TESTO,
+    sottoSize: TESTO
   };
+  var COLORI = [['#26221E', 'Scuro'], ['#6B655C', 'Grigio'], ['#1F4FD8', 'Blu'], ['#C62828', 'Rosso'], ['#2E7D32', 'Verde']];
   function sz(k) { var v = Number(state[k]); return SIZES[k].indexOf(v) !== -1 ? v : DEFS[attivo][k]; }
+  function col(k) { var v = String(state[k] || ''); return /^#[0-9a-fA-F]{6}$/.test(v) ? v.toUpperCase() : DEFS[attivo][k]; }
 
   // Larghezza bloccata dei riquadri, ricavata dalla foto: riquadro 1553 px e riga di apertura 1185 px a scala 150 %
   var BOX_W = 1035;
@@ -454,10 +451,10 @@ kbd {
         : '';
       var sotto = s.sub ? String(s.sotto || '').trim() : '';
       var sottoHtml = sotto ? esc(sotto) : (s.sub && mode === 'preview' ? '<span class="hint-sub">Sottotitolo: scrivilo nel campo a sinistra</span>' : '');
-      var stileTitolo = 'font-family:' + FONT + ';font-size:' + ts + 'px;line-height:1.4;font-weight:bold;color:#26221E;';
+      var stileTitolo = 'font-family:' + FONT + ';font-size:' + ts + 'px;line-height:1.4;font-weight:bold;color:' + col('titoliColor') + ';';
       var testata = sottoHtml
         ? '<tr><td style="padding:0 0 2px 0;' + stileTitolo + '">' + titolo + '</td></tr>' +
-          '<tr><td style="padding:0 0 6px 0;border-bottom:1px solid #E7E0D3;font-family:' + FONT + ';font-size:' + sz('sottoSize') + 'px;line-height:1.4;color:#4A443D;">' + sottoHtml + '</td></tr>'
+          '<tr><td style="padding:0 0 6px 0;border-bottom:1px solid #E7E0D3;font-family:' + FONT + ';font-size:' + sz('sottoSize') + 'px;line-height:1.4;color:' + col('sottoColor') + ';">' + sottoHtml + '</td></tr>'
         : '<tr><td style="padding:0 0 6px 0;border-bottom:1px solid #E7E0D3;' + stileTitolo + '">' + titolo + '</td></tr>';
       return '<tr><td style="padding:26px 0 0 0;">' +
         '<table ' + T + '">' +
@@ -473,10 +470,10 @@ kbd {
     }).join('');
 
     var apertura = state.apertura.trim()
-      ? '<tr><td style="padding:0;font-family:' + FONT + ';font-size:' + sz('aperturaSize') + 'px;line-height:1.5;color:#26221E;">' + fmt(d(state.apertura)) + '</td></tr>'
+      ? '<tr><td style="padding:0;font-family:' + FONT + ';font-size:' + sz('aperturaSize') + 'px;line-height:1.5;color:' + col('aperturaColor') + ';">' + fmt(d(state.apertura)) + '</td></tr>'
       : '';
     var chiusura = String(state.chiusura || '').trim()
-      ? '<tr><td style="padding:28px 0 0 0;font-family:' + FONT + ';font-size:' + sz('chiusuraSize') + 'px;line-height:1.5;color:#26221E;">' + esc(state.chiusura.trim()) + '</td></tr>'
+      ? '<tr><td style="padding:28px 0 0 0;font-family:' + FONT + ';font-size:' + sz('chiusuraSize') + 'px;line-height:1.5;color:' + col('chiusuraColor') + ';">' + esc(state.chiusura.trim()) + '</td></tr>'
       : '';
     return '<table role="presentation" width="' + BOX_W + '" cellpadding="0" cellspacing="0" border="0" style="width:' + BOX_W + 'px;border-collapse:collapse;font-family:' + FONT + ';-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">' +
       apertura + sez + chiusura +
@@ -664,19 +661,27 @@ kbd {
   function fillFields() {
     Object.keys(FIELDS).forEach(function (k) { $(FIELDS[k]).value = state[k]; });
     $('#f-numeri').checked = !!state.numeri;
-    Object.keys(SIZES).forEach(function (k) {
-      var r = document.getElementById(k + '-' + sz(k));
-      if (r) r.checked = true;
+    document.querySelectorAll('.stile').forEach(function (g) {
+      var ks = g.getAttribute('data-size'), kc = g.getAttribute('data-color'), c = col(kc);
+      g.querySelector('select').value = String(sz(ks));
+      g.querySelector('input[type="color"]').value = c.toLowerCase();
+      g.querySelectorAll('.sw').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-c') === c)); });
     });
   }
-  document.querySelectorAll('.size[data-key]').forEach(function (g) {
-    var k = g.getAttribute('data-key');
-    g.innerHTML = SIZES[k].map(function (v) {
-      var id = k + '-' + v;
-      return '<input type="radio" name="' + k + '" id="' + id + '" value="' + v + '"><label for="' + id + '">' + v + '</label>';
-    }).join('');
-    g.addEventListener('change', function (e) {
-      if (e.target.name === k) { state[k] = Number(e.target.value); update(); }
+  document.querySelectorAll('.stile').forEach(function (g) {
+    var ks = g.getAttribute('data-size'), kc = g.getAttribute('data-color'), nome = g.getAttribute('data-nome');
+    g.innerHTML =
+      '<select id="' + ks + '" aria-label="Grandezza ' + nome + '">' +
+        SIZES[ks].map(function (v) { return '<option value="' + v + '">' + v + '</option>'; }).join('') +
+      '</select><span class="unit">px</span>' +
+      '<input type="color" id="' + kc + '" aria-label="Colore ' + nome + '" title="Scegli un altro colore">' +
+      '<span class="swatches">' +
+        COLORI.map(function (c) { return '<button type="button" class="sw" data-c="' + c[0] + '" aria-label="' + c[1] + '" title="' + c[1] + '" aria-pressed="false" style="background:' + c[0] + '"></button>'; }).join('') +
+      '</span>';
+    g.querySelector('select').addEventListener('change', function (e) { state[ks] = Number(e.target.value); update(); });
+    g.querySelector('input[type="color"]').addEventListener('input', function (e) { state[kc] = e.target.value.toUpperCase(); fillFields(); update(); });
+    g.querySelectorAll('.sw').forEach(function (b) {
+      b.addEventListener('click', function () { state[kc] = b.getAttribute('data-c'); fillFields(); update(); });
     });
   });
   Object.keys(FIELDS).forEach(function (k) {
