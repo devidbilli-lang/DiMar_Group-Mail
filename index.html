@@ -255,7 +255,7 @@ kbd {
 .pbi input[type="date"]:hover, .pbi select:hover { border-color: var(--muted); }
 .pbi select { font: inherit; font-size: 14px; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; flex: 1 1 160px; min-width: 0; max-width: 100%; cursor: pointer; }
 .pbi select:disabled { opacity: .55; cursor: default; }
-.pbi code { font-family: ui-monospace, Consolas, 'Courier New', monospace; font-size: 12.5px; background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
+.pbi code, .hint code, .help code { font-family: ui-monospace, Consolas, 'Courier New', monospace; font-size: 12.5px; background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
 .pbi-ris { margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); font-size: 14px; display: grid; gap: 6px; overflow-wrap: anywhere; }
 .pbi-ris.err { border-color: #C62828; }
 .pbi-ris.ok { border-color: #2E9B4F; }
@@ -301,7 +301,7 @@ kbd {
               <div class="stile" data-size="aperturaSize" data-color="aperturaColor" data-nome="apertura"></div>
             </div>
             <textarea id="f-apertura" rows="5"></textarea>
-            <p class="hint">Metti il testo tra **doppi asterischi** per il grassetto.</p>
+            <p class="hint">Metti il testo tra **doppi asterischi** per il grassetto. Scrivi <code>{data}</code> dove vuoi la data di oggi (es. 17/11): si aggiorna da sola ogni giorno. <code>{data_completa}</code> aggiunge l'anno.</p>
           </div>
         </div>
       </fieldset>
@@ -405,7 +405,7 @@ kbd {
           <ol>
             <li>Cattura la schermata con <kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>.</li>
             <li>Clicca un riquadro qui nell'anteprima e premi <kbd>Ctrl</kbd>+<kbd>V</kbd>, oppure trascinaci l'immagine. Lo screenshot si adatta da solo alla larghezza del riquadro. Se non hai cliccato nessun riquadro, va nel primo vuoto.</li>
-            <li>Aggiorna la data nel testo di apertura.</li>
+            <li>La data nel testo di apertura si aggiorna da sola, se al suo posto hai scritto <code>{data}</code>.</li>
             <li>Apri una nuova mail in Gmail. Premi <b>Copia destinatari</b> e incolla nel campo «A» con <kbd>Ctrl</kbd>+<kbd>V</kbd>.</li>
             <li>Premi <b>Copia mail per Gmail</b> e incolla nel corpo. Aggiungi l'oggetto e invia.</li>
           </ol>
@@ -458,7 +458,7 @@ kbd {
   ];
   var DEFS = {
     eff: {
-      apertura: 'Buon pomeriggio,\ndi seguito il riepilogo delle efficienze dei singoli gruppi di assemblaggio e reparti amont riguardanti la giornata odierna **(gg/mm).**',
+      apertura: 'Buon pomeriggio,\ndi seguito il riepilogo delle efficienze dei singoli gruppi di assemblaggio e reparti amont riguardanti la giornata odierna **({data}).**',
       numeri: true,
       aperturaSize: 14,
       titoli: 16,
@@ -477,7 +477,7 @@ kbd {
       destinatari: ''
     },
     chanel: {
-      apertura: 'Buon pomeriggio,\ndi seguito l\'aggiornamento delle spedizioni Chanel alla data odierna **(gg/mm).**',
+      apertura: 'Buon pomeriggio,\ndi seguito l\'aggiornamento delle spedizioni Chanel alla data odierna **({data}).**',
       numeri: true,
       aperturaSize: 14,
       titoli: 16,
@@ -549,6 +549,12 @@ kbd {
   });
   if (['Buongiorno, di seguito il riepilogo della giornata.', 'Buongiorno,\ndi seguito il riepilogo della giornata.'].indexOf(store.modelli.eff.apertura) !== -1) store.modelli.eff.apertura = DEFS.eff.apertura;
 
+  // Chi ha ancora il segnaposto vecchio «(gg/mm)» passa alla data automatica
+  MODELLI.forEach(function (M) {
+    var m = store.modelli[M.id];
+    if (m && typeof m.apertura === 'string') m.apertura = m.apertura.replace(/\(gg\/mm\)/g, '({data})');
+  });
+
   function modello(id) { for (var i = 0; i < MODELLI.length; i++) if (MODELLI[i].id === id) return MODELLI[i]; return null; }
   function modelloDaHash() {
     var h = '';
@@ -572,7 +578,14 @@ kbd {
   }
   function br(s) { return esc(s).replace(/\n/g, '<br>'); }
   function fmt(s) { return br(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'); }
-  function d(s) { return String(s || ''); }
+  // Testo della mail con le date al posto dei segnaposto: {data} = giorno/mese di oggi, {data_completa} = con l'anno.
+  // «Oggi» è il giorno in cui la mail viene copiata (o spedita), quindi la data si aggiorna da sola.
+  function d(s) {
+    var o = new Date();
+    function due(n) { return ('0' + n).slice(-2); }
+    var breve = due(o.getDate()) + '/' + due(o.getMonth() + 1);
+    return String(s || '').replace(/\{data_completa\}/gi, breve + '/' + o.getFullYear()).replace(/\{data\}/gi, breve);
+  }
 
   var FONT = 'Tahoma,Verdana,Geneva,sans-serif';
   var T = 'role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;';
