@@ -249,6 +249,20 @@ kbd {
   <div class="grid" id="pannello" role="tabpanel">
     <form id="editor" class="panel" novalidate>
       <fieldset>
+        <legend>Destinatari</legend>
+        <div class="stack">
+          <div class="field">
+            <div class="field-head">
+              <label for="f-dest" class="big-label">LISTA MAIL</label>
+              <span class="unit" id="dest-info"></span>
+            </div>
+            <textarea id="f-dest" rows="3" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="nome.cognome@azienda.it — uno per riga, oppure separati da virgola"></textarea>
+            <p class="hint">Si copia con «Copia destinatari» e si incolla nel campo «A» di Gmail. Gli indirizzi restano salvati solo in questo browser.</p>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
         <legend>Apertura</legend>
         <div class="stack">
           <div class="field">
@@ -300,6 +314,7 @@ kbd {
         <span class="lbl"><b id="p-nome"></b> · riquadri <span id="p-larg"></span> px<span id="p-zoom"></span></span>
         <div class="bar-actions">
           <button type="button" class="btn" id="svuota" disabled>Svuota riquadri</button>
+          <button type="button" class="btn" id="copy-dest" disabled>Copia destinatari</button>
           <button type="button" class="btn primary" id="copy-mail">Copia mail per Gmail</button>
         </div>
       </div>
@@ -314,7 +329,8 @@ kbd {
             <li>Cattura la schermata con <kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>.</li>
             <li>Clicca un riquadro qui nell'anteprima e premi <kbd>Ctrl</kbd>+<kbd>V</kbd>, oppure trascinaci l'immagine. Lo screenshot si adatta da solo alla larghezza del riquadro. Se non hai cliccato nessun riquadro, va nel primo vuoto.</li>
             <li>Aggiorna la data nel testo di apertura.</li>
-            <li>Premi <b>Copia mail per Gmail</b>, apri una nuova mail e incolla nel corpo con <kbd>Ctrl</kbd>+<kbd>V</kbd>. Aggiungi destinatari e oggetto e invia.</li>
+            <li>Apri una nuova mail in Gmail. Premi <b>Copia destinatari</b> e incolla nel campo «A» con <kbd>Ctrl</kbd>+<kbd>V</kbd>.</li>
+            <li>Premi <b>Copia mail per Gmail</b> e incolla nel corpo. Aggiungi l'oggetto e invia.</li>
           </ol>
         </div>
         <div>
@@ -360,7 +376,8 @@ kbd {
         { titolo: 'Dettaglio reparti', note: true },
         { titolo: 'Criticità e azioni', note: true }
       ],
-      chiusura: 'Un saluto'
+      chiusura: 'Un saluto',
+      destinatari: ''
     },
     chanel: {
       apertura: 'Buon pomeriggio,\ndi seguito l\'aggiornamento delle spedizioni Chanel alla data odierna **(gg/mm).**',
@@ -376,7 +393,8 @@ kbd {
       sezioni: [
         { titolo: 'Aggiornamento spedizioni', sub: true, sotto: '', note: false }
       ],
-      chiusura: 'Un saluto'
+      chiusura: 'Un saluto',
+      destinatari: ''
     }
   };
 
@@ -566,6 +584,24 @@ kbd {
 
   function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
 
+  // Lista destinatari: accetta righe, virgole, punti e virgola e anche "Nome <indirizzo>"; toglie i doppioni
+  function indirizzi() {
+    var visti = {}, ok = [], ko = [];
+    String(state.destinatari || '').split(/[,;\n]+/).forEach(function (pezzo) {
+      pezzo = pezzo.trim();
+      if (!pezzo) return;
+      var m = pezzo.match(/[^\s<>"'()]+@[^\s<>"'()@]+\.[^\s<>"'()@.]+/g);
+      if (!m) { ko.push(pezzo); return; }
+      m.forEach(function (a) { var k = a.toLowerCase(); if (!visti[k]) { visti[k] = 1; ok.push(a); } });
+    });
+    return { ok: ok, ko: ko };
+  }
+  function aggiornaDestinatari() {
+    var r = indirizzi();
+    $('#dest-info').textContent = (r.ok.length === 1 ? '1 indirizzo' : r.ok.length + ' indirizzi') + (r.ko.length ? ' · ' + r.ko.length + ' da controllare' : '');
+    $('#copy-dest').disabled = !r.ok.length;
+  }
+
   // Schede dei report
   function renderTabs() {
     $('#tabs').innerHTML = MODELLI.map(function (M) {
@@ -622,6 +658,7 @@ kbd {
     $('#mail').innerHTML = buildEmail('preview');
     renderTabs();
     $('#svuota').disabled = !fotoVisibili(attivo);
+    aggiornaDestinatari();
     fit();
     save();
   }
@@ -728,7 +765,7 @@ kbd {
     toast('Riquadri svuotati.');
   });
 
-  var FIELDS = { apertura: '#f-apertura', chiusura: '#f-chiusura' };
+  var FIELDS = { apertura: '#f-apertura', chiusura: '#f-chiusura', destinatari: '#f-dest' };
   function fillFields() {
     Object.keys(FIELDS).forEach(function (k) { $(FIELDS[k]).value = state[k]; });
     $('#f-numeri').checked = !!state.numeri;
@@ -929,6 +966,31 @@ kbd {
     return ok;
   }
 
+  $('#copy-dest').addEventListener('click', function () {
+    var r = indirizzi();
+    if (!r.ok.length) return;
+    var testo = r.ok.join(', ');
+    var fatto = (r.ok.length === 1 ? '1 destinatario copiato' : r.ok.length + ' destinatari copiati') + ' per «' + modello(attivo).nome + '». Incolla nel campo «A» di Gmail.' +
+      (r.ko.length ? ' ' + (r.ko.length === 1 ? '1 voce saltata: non è un indirizzo.' : r.ko.length + ' voci saltate: non sono indirizzi.') : '');
+    var fallback = function () {
+      var ta = document.createElement('textarea');
+      ta.value = testo; ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;left:-99999px;top:0;';
+      document.body.appendChild(ta); ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      toast(ok ? fatto : 'La copia non è riuscita. Seleziona gli indirizzi nel campo «Lista mail» e premi Ctrl+C.');
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(testo).then(function () { toast(fatto); }, fallback);
+        return;
+      }
+    } catch (e) {}
+    fallback();
+  });
+
   $('#copy-mail').addEventListener('click', function () {
     var html = buildEmail('export');
     var text = buildText();
@@ -969,7 +1031,9 @@ kbd {
     clearTimeout(armTimer);
     armed = false;
     b.textContent = 'Ripristina predefiniti';
+    var lista = state.destinatari;
     state = store.modelli[attivo] = clone(DEFS[attivo]);
+    state.destinatari = lista;
     setImgs({});
     normalizza(state);
     fillFields();
