@@ -115,7 +115,8 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .unit { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
 
 #sezioni { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.sez { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+.sez { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.sez-opts { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .sez-n { font-family: var(--f-mono); font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
 .sez .chk { font-size: 13px; color: var(--muted); }
 .sez .sez-sub { grid-column: 2 / -1; font-size: 13px; }
@@ -225,7 +226,6 @@ kbd {
             </div>
           </div>
           <label class="chk" for="f-numeri"><input type="checkbox" id="f-numeri"> Numera le sezioni</label>
-          <label class="chk" for="f-sotto"><input type="checkbox" id="f-sotto"> Sottotitolo sotto ogni titolo</label>
           <div class="field" id="sotto-size-field" hidden>
             <span class="flabel" id="lbl-ssize">Grandezza sottotitoli</span>
             <div class="size-row">
@@ -310,7 +310,6 @@ kbd {
       aperturaSize: 14,
       titoli: 16,
       chiusuraSize: 14,
-      sottotitoli: false,
       sottoSize: 14,
       sezioni: [
         { titolo: 'Sintesi della giornata', note: false },
@@ -325,10 +324,9 @@ kbd {
       aperturaSize: 14,
       titoli: 16,
       chiusuraSize: 14,
-      sottotitoli: true,
       sottoSize: 14,
       sezioni: [
-        { titolo: 'Aggiornamento spedizioni', sotto: '', note: false }
+        { titolo: 'Aggiornamento spedizioni', sub: true, sotto: '', note: false }
       ],
       chiusura: 'Un saluto'
     }
@@ -372,6 +370,11 @@ kbd {
     }
     Object.keys(DEFS[M.id]).forEach(function (k) { if (m[k] === undefined) m[k] = clone(DEFS[M.id][k]); });
     assignIds(m);
+    // il sottotitolo si sceglie sezione per sezione: chi aveva la spunta generale tiene quelli già scritti
+    m.sezioni.forEach(function (s) {
+      if (s.sub === undefined) s.sub = !!(m.sottotitoli && String(s.sotto || '').trim());
+    });
+    delete m.sottotitoli;
   });
   if (['Buongiorno, di seguito il riepilogo della giornata.', 'Buongiorno,\ndi seguito il riepilogo della giornata.'].indexOf(store.modelli.eff.apertura) !== -1) store.modelli.eff.apertura = DEFS.eff.apertura;
 
@@ -436,8 +439,8 @@ kbd {
       var nota = s.note
         ? '<tr><td style="padding:10px 0 0 0;font-family:' + FONT + ';font-size:14px;line-height:1.5;color:#4A443D;"><strong style="color:#26221E;">Note:</strong> scrivi qui un commento</td></tr>'
         : '';
-      var sotto = state.sottotitoli ? String(s.sotto || '').trim() : '';
-      var sottoHtml = sotto ? esc(sotto) : (state.sottotitoli && mode === 'preview' ? '<span class="hint-sub">Sottotitolo: scrivilo nel campo a sinistra</span>' : '');
+      var sotto = s.sub ? String(s.sotto || '').trim() : '';
+      var sottoHtml = sotto ? esc(sotto) : (s.sub && mode === 'preview' ? '<span class="hint-sub">Sottotitolo: scrivilo nel campo a sinistra</span>' : '');
       var stileTitolo = 'font-family:' + FONT + ';font-size:' + ts + 'px;line-height:1.4;font-weight:bold;color:#26221E;';
       var testata = sottoHtml
         ? '<tr><td style="padding:0 0 2px 0;' + stileTitolo + '">' + titolo + '</td></tr>' +
@@ -472,7 +475,7 @@ kbd {
     if (state.apertura.trim()) { out.push(d(state.apertura).replace(/\*\*/g, '')); out.push(''); }
     state.sezioni.forEach(function (s, i) {
       out.push((state.numeri ? (i + 1) + '. ' : '') + (s.titolo.trim() || 'Titolo sezione'));
-      if (state.sottotitoli && String(s.sotto || '').trim()) out.push(s.sotto.trim());
+      if (s.sub && String(s.sotto || '').trim()) out.push(s.sotto.trim());
       if (s.note) out.push('Note: ');
       out.push('');
     });
@@ -648,8 +651,6 @@ kbd {
   function fillFields() {
     Object.keys(FIELDS).forEach(function (k) { $(FIELDS[k]).value = state[k]; });
     $('#f-numeri').checked = !!state.numeri;
-    $('#f-sotto').checked = !!state.sottotitoli;
-    $('#sotto-size-field').hidden = !state.sottotitoli;
     Object.keys(SIZES).forEach(function (k) {
       var r = document.getElementById(k + '-' + sz(k));
       if (r) r.checked = true;
@@ -669,16 +670,11 @@ kbd {
     $(FIELDS[k]).addEventListener('input', function (e) { state[k] = e.target.value; update(); });
   });
   $('#f-numeri').addEventListener('change', function (e) { state.numeri = e.target.checked; update(); });
-  $('#f-sotto').addEventListener('change', function (e) {
-    state.sottotitoli = e.target.checked;
-    $('#sotto-size-field').hidden = !state.sottotitoli;
-    renderSezioni();
-    update();
-  });
 
   function renderSezioni(focusId) {
     var ol = $('#sezioni');
     ol.innerHTML = '';
+    $('#sotto-size-field').hidden = !state.sezioni.some(function (x) { return x.sub; });
     var n = state.sezioni.length;
     state.sezioni.forEach(function (s, i) {
       var li = document.createElement('li');
@@ -686,17 +682,27 @@ kbd {
       li.innerHTML =
         '<span class="sez-n">' + (i + 1) + '</span>' +
         '<input type="text" id="sez-t-' + s.id + '" aria-label="Titolo sezione ' + (i + 1) + '" value="' + esc(s.titolo) + '">' +
-        '<label class="chk" for="sez-n-' + s.id + '"><input type="checkbox" id="sez-n-' + s.id + '"' + (s.note ? ' checked' : '') + '> Note</label>' +
         '<div class="tools">' +
           '<button type="button" class="icon" data-act="up" aria-label="Sposta su"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
           '<button type="button" class="icon" data-act="down" aria-label="Sposta giù"' + (i === n - 1 ? ' disabled' : '') + '>↓</button>' +
           '<button type="button" class="icon" data-act="del" aria-label="Elimina sezione"' + (n === 1 ? ' disabled' : '') + '>×</button>' +
         '</div>' +
-        (state.sottotitoli ? '<input type="text" class="sez-sub" id="sez-s-' + s.id + '" aria-label="Sottotitolo sezione ' + (i + 1) + '" placeholder="Sottotitolo" value="' + esc(s.sotto || '') + '">' : '');
+        '<div class="sez-opts">' +
+          '<label class="chk" for="sez-c-' + s.id + '"><input type="checkbox" id="sez-c-' + s.id + '"' + (s.sub ? ' checked' : '') + '> Sottotitolo</label>' +
+          '<label class="chk" for="sez-n-' + s.id + '"><input type="checkbox" id="sez-n-' + s.id + '"' + (s.note ? ' checked' : '') + '> Note</label>' +
+        '</div>' +
+        (s.sub ? '<input type="text" class="sez-sub" id="sez-s-' + s.id + '" aria-label="Sottotitolo sezione ' + (i + 1) + '" placeholder="Sottotitolo" value="' + esc(s.sotto || '') + '">' : '');
       li.querySelector('input[type="text"]').addEventListener('input', function (e) { s.titolo = e.target.value; update(); });
       var sub = li.querySelector('.sez-sub');
       if (sub) sub.addEventListener('input', function (e) { s.sotto = e.target.value; update(); });
-      li.querySelector('input[type="checkbox"]').addEventListener('change', function (e) { s.note = e.target.checked; update(); });
+      li.querySelector('#sez-n-' + s.id).addEventListener('change', function (e) { s.note = e.target.checked; update(); });
+      li.querySelector('#sez-c-' + s.id).addEventListener('change', function (e) {
+        s.sub = e.target.checked;
+        renderSezioni();
+        update();
+        var f = document.getElementById(s.sub ? 'sez-s-' + s.id : 'sez-c-' + s.id);
+        if (f) f.focus();
+      });
       li.querySelectorAll('button').forEach(function (b) {
         b.addEventListener('click', function () {
           var act = b.getAttribute('data-act');
@@ -717,7 +723,7 @@ kbd {
   }
 
   $('#add').addEventListener('click', function () {
-    var s = { id: nuovoId(), titolo: 'Nuova sezione', sotto: '', note: true };
+    var s = { id: nuovoId(), titolo: 'Nuova sezione', sub: false, sotto: '', note: true };
     state.sezioni.push(s);
     renderSezioni(s.id);
     update();
