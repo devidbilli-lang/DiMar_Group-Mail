@@ -358,11 +358,18 @@ kbd {
             <button type="button" class="btn" id="pbi-prova" disabled>Prova collegamento</button>
           </div>
           <div class="pbi-row">
+            <label class="flabel" for="pbi-pagina">Pagina</label>
+            <select id="pbi-pagina">
+              <option value="pannello">Pannello di Controllo</option>
+              <option value="lv">Efficienza LV</option>
+            </select>
+          </div>
+          <div class="pbi-row">
             <label class="flabel" for="pbi-box">Riquadro</label>
             <select id="pbi-box"></select>
             <button type="button" class="btn primary" id="pbi-compila" disabled>Compila da Power BI</button>
           </div>
-          <p class="hint">«Compila» ridisegna nel riquadro scelto il Pannello di Controllo, uguale a quello di Power BI, con i valori del giorno.</p>
+          <p class="hint">«Compila» ridisegna nel riquadro scelto la pagina di Power BI scelta, con i valori del giorno. Per «Efficienza LV» il periodo sono gli otto giorni che finiscono nel giorno scelto.</p>
           <div class="pbi-ris" id="pbi-ris" role="status" aria-live="polite" hidden></div>
           <p class="hint">L'accesso è il tuo account Microsoft: nella pagina non viene salvata nessuna password. Si apre in una finestrella, quindi gli screenshot già incollati restano al loro posto.</p>
           <details>
@@ -1142,7 +1149,8 @@ kbd {
     tenant: '1bdd4a8e-d6c3-4c76-9a07-49d62043dd51',
     group: 'e51a4a64-f6b8-451b-86bf-b2827ab4b88a',
     report: 'c868b62d-258a-4a3f-a790-d7d0164fb2a1',
-    dataset: ''
+    dataset: '',
+    pagina: 'pannello'
   };
   var PBI_SCOPE = 'https://analysis.windows.net/powerbi/api/Dataset.Read.All https://analysis.windows.net/powerbi/api/Report.Read.All offline_access openid profile';
   var GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -1497,11 +1505,12 @@ kbd {
     if (!giorno) return;
     pbiOccupato = true; pbiDisegna();
     pbiEsito('info', 'Leggo i valori da Power BI…');
-    pbiLeggi(giorno).then(function (d) {
-      var vuoto = pbiVuoto(d);
+    var pag = pbiPagina();
+    pag.leggi(giorno).then(function (d) {
+      var vuoto = pag.vuoto(d);
       pbiEsito(vuoto ? 'info' : 'ok', vuoto
         ? 'Collegamento riuscito, ma per il ' + giorno.testo + ' il modello non ha valori: prova un altro giorno.'
-        : 'Collegamento riuscito. Valori del ' + giorno.testo + (pbi.nomeReport ? ' letti dal report «' + pbi.nomeReport + '»' : '') + ': confrontali con il Pannello di Controllo.', pbiElenco(d));
+        : 'Collegamento riuscito. Valori del ' + giorno.testo + (pbi.nomeReport ? ' letti dal report «' + pbi.nomeReport + '»' : '') + ': confrontali con la pagina «' + pag.nome + '» in Power BI.', pag.elenco(d));
     }, function (e) {
       pbiEsito('err', e.message);
     }).then(function () { pbiOccupato = false; pbiDisegna(); });
@@ -1626,6 +1635,263 @@ kbd {
 
     return { src: c.toDataURL('image/png'), ratio: c.height / c.width };
   }
+  // ───────── Pagina «Efficienza LV» ─────────
+  // Periodo: PBI_LV.giorni giorni prima del giorno scelto, fino al giorno scelto compreso (come il filtro Data della pagina).
+  var PBI_LV = {
+    giorni: 7,
+    brand: 'LV',
+    escluse: ['Mazzei'],   // linee fuori dai tre indicatori e dal grafico
+    linee: ['Sara Visintin', 'Francesca Odorico', 'Mario Todini', 'Mario Todini 2.0', 'Giorgia Strada', 'Mazzei']   // card, nell'ordine della pagina
+  };
+  function pbiDataDax(q) { return 'DATE(' + q.getFullYear() + ', ' + (q.getMonth() + 1) + ', ' + q.getDate() + ')'; }
+  function pbiDataBreve(q) { function due(n) { return ('0' + n).slice(-2); } return due(q.getDate()) + '/' + due(q.getMonth() + 1) + '/' + q.getFullYear(); }
+  // Una data restituita da Power BI ("2026-11-17T00:00:00") come Date locale, oppure null
+  function pbiDataDa(v) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v === null || v === undefined ? '' : v));
+    return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+  }
+  function pbiLeggiLV(giorno) {
+    function elenco(l) { return '{' + l.map(function (n) { return '"' + n.replace(/"/g, '""') + '"'; }).join(', ') + '}'; }
+    function num(v) { return (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v); }
+    var al = new Date(giorno.a, giorno.m - 1, giorno.g);
+    var dal = new Date(giorno.a, giorno.m - 1, giorno.g - PBI_LV.giorni);
+    var fine = new Date(giorno.a, giorno.m - 1, giorno.g + 1);
+    // Stessi filtri degli oggetti visivi della pagina (da «Copia query»): linee escluse, periodo, brand
+    var def = 'DEFINE\n'
+      + "VAR __Linee = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Nome Linea])), NOT('Presenze CF Worker'[Nome Linea] IN " + elenco(PBI_LV.escluse) + '))\n'
+      + "VAR __Periodo = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Data])), AND('Presenze CF Worker'[Data] >= " + pbiDataDax(dal) + ", 'Presenze CF Worker'[Data] < " + pbiDataDax(fine) + '))\n'
+      + "VAR __Brand = TREATAS(" + elenco([PBI_LV.brand]) + ", 'Qualità CF Worker'[Brand])\n";
+    var col = [
+      ['Media', "CALCULATE('Presenze CF Worker'[Efficienza_LV], __Linee, __Periodo, __Brand)"],
+      ['Efficacia', "CALCULATE('Qualità CF Worker'[Efficacia], __Linee, __Periodo, __Brand)"],
+      ['Oggi', "CALCULATE('Presenze CF Worker'[Efficienza Oggi_LV], __Linee, __Periodo, __Brand)"],
+      ['MinData', "CALCULATE(MIN('Presenze CF Worker'[Data]), __Brand)"],
+      ['MaxData', "CALCULATE(MAX('Presenze CF Worker'[Data]), __Brand)"]
+    ];
+    PBI_LV.linee.forEach(function (nome, n) {
+      var f = "TREATAS(" + elenco([nome]) + ", 'Presenze CF Worker'[Nome Linea])";
+      col.push(['L' + n + 'E', "CALCULATE('Qualità CF Worker'[Efficienza], " + f + ', __Periodo, __Brand)']);
+      col.push(['L' + n + 'C', "CALCULATE('Qualità CF Worker'[Efficacia], " + f + ', __Periodo, __Brand)']);
+    });
+    var daxValori = def + 'EVALUATE ROW(\n' + col.map(function (c) { return '"' + c[0] + '", ' + c[1]; }).join(',\n') + '\n)';
+    var daxTrend = def + "EVALUATE SUMMARIZECOLUMNS('Presenze CF Worker'[Data], __Linee, __Periodo, __Brand,\n"
+      + "\"Efficienza\", 'Presenze CF Worker'[Efficienza_LV],\n\"Efficacia\", 'Qualità CF Worker'[Efficacia],\n\"Target\", IGNORE(CALCULATE(SUM('Target'[Target]))))\n"
+      + "ORDER BY 'Presenze CF Worker'[Data]";
+    return pbiQuery(daxValori).then(function (righe) {
+      var r = righe[0] || {};
+      var d = {
+        dal: dal, al: al,
+        ind: [
+          { k: 'Efficienza Media', v: num(r['[Media]']), c: '#F2955A' },
+          { k: 'Efficacia', v: num(r['[Efficacia]']), c: '#A58BF5' },
+          { k: 'Efficienza Oggi', v: num(r['[Oggi]']), c: '#F2955A' }
+        ],
+        min: pbiDataDa(r['[MinData]']), max: pbiDataDa(r['[MaxData]']),
+        linee: PBI_LV.linee.map(function (nome, n) { return { t: nome, eff: num(r['[L' + n + 'E]']), efc: num(r['[L' + n + 'C]']) }; }),
+        trend: []
+      };
+      return pbiQuery(daxTrend).then(function (tr) {
+        tr.forEach(function (x) {
+          var quando = null;
+          Object.keys(x).forEach(function (kk) { if (/\[Data\]$/.test(kk)) quando = pbiDataDa(x[kk]); });
+          if (quando) d.trend.push({ data: quando, eff: num(x['[Efficienza]']), efc: num(x['[Efficacia]']), target: num(x['[Target]']) });
+        });
+        d.trend.sort(function (a, b) { return a.data - b.data; });
+        return d;
+      });
+    });
+  }
+  function pbiElencoLV(d) {
+    var v = [['Periodo', pbiDataBreve(d.dal) + ' – ' + pbiDataBreve(d.al)]];
+    d.ind.forEach(function (x) { v.push([x.k, pbiPerc(x.v)]); });
+    d.linee.forEach(function (x) { v.push([x.t, 'Efficienza ' + pbiPerc(x.eff) + ' · Efficacia ' + pbiPerc(x.efc)]); });
+    d.trend.forEach(function (x) { v.push(['Trend ' + pbiDataBreve(x.data), 'Efficienza ' + pbiPerc(x.eff) + ' · Efficacia ' + pbiPerc(x.efc) + ' · Target ' + pbiPerc(x.target)]); });
+    return v;
+  }
+  function pbiVuotoLV(d) {
+    var n = [];
+    d.ind.forEach(function (x) { n.push(x.v); });
+    d.linee.forEach(function (x) { n.push(x.eff, x.efc); });
+    d.trend.forEach(function (x) { n.push(x.eff, x.efc); });
+    return n.every(function (x) { return x === null; });
+  }
+  // Ridisegna la pagina com'è in Power BI. Le misure sono quelle della pagina a 1879 × 1059.
+  function pbiImmagineLV(d) {
+    var SW = 1879, SH = 1059, k = (BOX_W * 2) / SW;
+    var F = 'Tahoma, Verdana, "Segoe UI", Arial, sans-serif';
+    var SFONDO = '#0B1220', TESSERA = '#131C2E', BORDO = '#1D2A42', BIANCO = '#EEF2F8', TRACCIA = '#F3F2F1';
+    var ARANCIO = '#F2955A', VIOLA = '#A58BF5', VERDE = '#00FF95', MARRONE = '#443738', BLU = '#33345A';
+    var c = document.createElement('canvas');
+    c.width = BOX_W * 2; c.height = Math.round(SH * k);
+    var x = c.getContext('2d');
+    x.scale(k, k);
+    x.fillStyle = SFONDO; x.fillRect(0, 0, SW, SH);
+    x.textBaseline = 'alphabetic';
+    function perc(v) { return v === null ? '--' : Math.round(v * 100) + '%'; }
+    function rr(x0, y0, w, h, r) {
+      x.beginPath();
+      x.moveTo(x0 + r, y0); x.lineTo(x0 + w - r, y0); x.quadraticCurveTo(x0 + w, y0, x0 + w, y0 + r);
+      x.lineTo(x0 + w, y0 + h - r); x.quadraticCurveTo(x0 + w, y0 + h, x0 + w - r, y0 + h);
+      x.lineTo(x0 + r, y0 + h); x.quadraticCurveTo(x0, y0 + h, x0, y0 + h - r);
+      x.lineTo(x0, y0 + r); x.quadraticCurveTo(x0, y0, x0 + r, y0);
+      x.closePath();
+    }
+    function tessera(x0, y0, w, h) {
+      rr(x0, y0, w, h, 10);
+      x.fillStyle = TESSERA; x.fill();
+      x.lineWidth = 2; x.strokeStyle = BORDO; x.stroke();
+    }
+    function testo(t, px, y, font, colore, allinea, max) {
+      x.font = font + ' ' + F; x.fillStyle = colore; x.textAlign = allinea || 'center';
+      if (max) x.fillText(t, px, y, max); else x.fillText(t, px, y);
+    }
+    function casella(x0, y0, w, h) {
+      x.fillStyle = MARRONE; x.fillRect(x0, y0, w, h);
+      x.lineWidth = 1.5; x.strokeStyle = '#C8CCD4'; x.strokeRect(x0, y0, w, h);
+    }
+    function freccia(cx, cy) {
+      x.lineWidth = 2.5; x.strokeStyle = BIANCO; x.lineCap = 'round'; x.lineJoin = 'round';
+      x.beginPath(); x.moveTo(cx - 13, cy - 7); x.lineTo(cx, cy + 7); x.lineTo(cx + 13, cy - 7); x.stroke();
+      x.lineCap = 'butt'; x.lineJoin = 'miter';
+    }
+    function calendario(cx, cy) {
+      x.lineWidth = 1.5; x.strokeStyle = BIANCO;
+      x.strokeRect(cx - 6, cy - 5, 12, 11);
+      x.beginPath(); x.moveTo(cx - 6, cy - 1.5); x.lineTo(cx + 6, cy - 1.5); x.stroke();
+    }
+
+    // Filtri in alto a sinistra: Settimana, Linea, Data
+    tessera(6, 9, 199, 117);
+    testo('Settimana', 17, 43, '28px', BIANCO, 'left');
+    casella(25, 64, 160, 47); testo('Tutte', 34, 99, '28px', BIANCO, 'left'); freccia(163, 88);
+    tessera(213, 9, 296, 117);
+    testo('Linea', 224, 43, '28px', BIANCO, 'left');
+    casella(232, 64, 259, 47); testo('Tutte', 241, 99, '28px', BIANCO, 'left'); freccia(468, 88);
+    tessera(6, 135, 503, 185);
+    testo('Data', 17, 168, '28px', BIANCO, 'left');
+    casella(29, 189, 212, 64); testo(pbiDataBreve(d.dal), 42, 232, '28px', BIANCO, 'left'); calendario(226, 224);
+    casella(250, 189, 212, 64); testo(pbiDataBreve(d.al), 263, 232, '28px', BIANCO, 'left'); calendario(447, 224);
+    // cursore del periodo: i due pomelli stanno dove cade il periodo tra la prima e l'ultima data del modello
+    var sx0 = 50, sx1 = 477, sy = 283;
+    x.lineWidth = 4; x.strokeStyle = BIANCO; x.lineCap = 'round';
+    x.beginPath(); x.moveTo(sx0, sy); x.lineTo(sx1, sy); x.stroke(); x.lineCap = 'butt';
+    function pos(q) {
+      if (!d.min || !d.max || d.max <= d.min) return 1;
+      return Math.max(0, Math.min(1, (q - d.min) / (d.max - d.min)));
+    }
+    [pos(d.dal), pos(d.al)].forEach(function (f) {
+      x.beginPath(); x.arc(sx0 + (sx1 - sx0) * f, sy, 17, 0, 2 * Math.PI);
+      x.fillStyle = ARANCIO; x.fill();
+      x.lineWidth = 1.5; x.strokeStyle = TESSERA; x.stroke();
+    });
+
+    // Tre indicatori a semicerchio
+    [516, 972, 1427].forEach(function (tx, i) {
+      var it = d.ind[i], tw = 444, ty = 9;
+      tessera(tx, ty, tw, 310);
+      if (!it) return;
+      testo(it.k, tx + tw / 2, ty + 36, 'bold 30px', it.c);
+      var cx = tx + tw / 2, cy = ty + 264, R = 182, LW = 64;
+      x.lineWidth = LW; x.lineCap = 'butt';
+      x.strokeStyle = TRACCIA;
+      x.beginPath(); x.arc(cx, cy, R, Math.PI, 2 * Math.PI); x.stroke();
+      if (it.v !== null) {
+        var q = Math.max(0, Math.min(1, it.v));
+        if (q > 0) { x.strokeStyle = it.c; x.beginPath(); x.arc(cx, cy, R, Math.PI, Math.PI + Math.PI * q); x.stroke(); }
+      }
+      var tv = perc(it.v);
+      testo(tv, cx, cy - 14, (tv.length > 3 ? 62 : 76) + 'px', it.c);
+      testo('0%', cx - R - LW / 2, cy + 31, '23px', BIANCO, 'left');
+      testo('100%', cx + R + LW / 2, cy + 31, '23px', BIANCO, 'right');
+    });
+
+    // Card delle linee: Efficienza sopra, Efficacia sotto
+    var CX = [6, 318, 633, 945, 1257, 1564], CWD = [305, 305, 305, 305, 305, 308];
+    d.linee.slice(0, 6).forEach(function (cd, n) {
+      var tx = CX[n], tw = CWD[n], ty = 328;
+      tessera(tx, ty, tw, 256);
+      testo(cd.t, tx + tw / 2, ty + 34, 'bold 29px', BIANCO, 'center', tw - 16);
+      [['Efficienza', cd.eff, ARANCIO, MARRONE, 375], ['Efficacia', cd.efc, VIOLA, BLU, 472]].forEach(function (m) {
+        x.fillStyle = m[3]; x.fillRect(tx + 12, m[4], tw - 25, 96);
+        testo(m[0], tx + tw / 2, m[4] + 31, '28px', m[2]);
+        testo(perc(m[1]), tx + tw / 2, m[4] + 85, 'bold 48px', m[2]);
+      });
+    });
+
+    // Trend Efficienza: tre linee (Efficienza, Efficacia, Target) con le etichette dei valori
+    tessera(6, 592, 1866, 463);
+    testo('Trend Efficienza', 939, 621, 'bold 28px', BIANCO);
+    var voci = [['Efficienza', ARANCIO], ['Efficacia', VIOLA], ['Target', VERDE]];
+    x.font = '22px ' + F;
+    var larghezze = voci.map(function (v) { return 18 + x.measureText(v[0]).width; }), tot = 0;
+    larghezze.forEach(function (w, i) { tot += w + (i ? 12 : 0); });
+    var lx = 939 - tot / 2;
+    voci.forEach(function (v, i) {
+      x.beginPath(); x.arc(lx + 7, 660, 7, 0, 2 * Math.PI); x.fillStyle = v[1]; x.fill();
+      testo(v[0], lx + 18, 668, '22px', BIANCO, 'left');
+      lx += larghezze[i] + 12;
+    });
+    var punti = d.trend, np = punti.length;
+    if (np) {
+      var PX0 = 28, PX1 = 1880, YT = 695, YB = 985;
+      var tutti = [];
+      punti.forEach(function (p) { [p.eff, p.efc, p.target].forEach(function (v) { if (v !== null) tutti.push(v); }); });
+      var vmax = Math.max.apply(null, tutti), vmin = Math.min.apply(null, tutti);
+      if (!(vmax > vmin)) { vmax = vmin + 0.01; }
+      function px(i) { return PX0 + (i + 0.5) * (PX1 - PX0) / np; }
+      function py(v) { return YT + (vmax - v) / (vmax - vmin) * (YB - YT); }
+      function linea(campo, colore) {
+        x.lineWidth = 5; x.strokeStyle = colore; x.lineJoin = 'round'; x.lineCap = 'round';
+        x.beginPath();
+        var aperta = false;
+        punti.forEach(function (p, i) {
+          if (p[campo] === null) { aperta = false; return; }
+          if (aperta) x.lineTo(px(i), py(p[campo])); else { x.moveTo(px(i), py(p[campo])); aperta = true; }
+        });
+        x.stroke(); x.lineJoin = 'miter'; x.lineCap = 'butt';
+      }
+      linea('target', VERDE); linea('efc', VIOLA); linea('eff', ARANCIO);
+      // etichette: Efficienza sopra il punto, Efficacia sotto; restano dentro il grafico e non si sovrappongono
+      function cartellino(t, cx, cy, fondo) {
+        x.font = 'bold 22px ' + F;
+        var w = x.measureText(t).width + 26;
+        rr(cx - w / 2, cy - 16, w, 33, 6); x.fillStyle = fondo; x.fill();
+        testo(t, cx, cy + 9, 'bold 22px', '#FFFFFF');
+      }
+      punti.forEach(function (p, i) {
+        var ya = p.eff === null ? null : py(p.eff) - 26, yb = p.efc === null ? null : py(p.efc) + 30;
+        if (yb !== null && yb + 17 > YB + 12) yb = py(p.efc) - 26;
+        if (ya !== null && yb !== null && Math.abs(ya - yb) < 37) {
+          if (yb >= ya) yb = ya + 37; else ya = yb + 37;
+        }
+        if (ya !== null) cartellino(perc(p.eff), px(i), ya, '#825744');
+        if (yb !== null) cartellino(perc(p.efc), px(i), yb, '#5B5291');
+      });
+      // date sull'asse: su una riga se ci stanno, altrimenti l'anno va a capo
+      var passo = (PX1 - PX0) / np;
+      punti.forEach(function (p, i) {
+        var t = p.data.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        x.font = '21px ' + F;
+        if (x.measureText(t).width <= passo - 24) testo(t, px(i), 1020, '21px', BIANCO);
+        else {
+          var taglio = t.lastIndexOf(' ');
+          testo(t.slice(0, taglio), px(i), 1020, '21px', BIANCO, 'center', passo - 10);
+          testo(t.slice(taglio + 1), px(i), 1047, '21px', BIANCO);
+        }
+      });
+    } else {
+      testo('Nessun dato nel periodo', 939, 840, '26px', '#A9B3C6');
+    }
+    return { src: c.toDataURL('image/png'), ratio: c.height / c.width };
+  }
+
+  // Le pagine di Power BI che DiMail sa ridisegnare
+  var PBI_PAGINE = {
+    pannello: { nome: 'Pannello di Controllo', leggi: pbiLeggi, elenco: pbiElenco, vuoto: pbiVuoto, immagine: pbiImmagine },
+    lv: { nome: 'Efficienza LV', leggi: pbiLeggiLV, elenco: pbiElencoLV, vuoto: pbiVuotoLV, immagine: pbiImmagineLV }
+  };
+  function pbiPagina() { return PBI_PAGINE[$('#pbi-pagina').value] || PBI_PAGINE.pannello; }
+
   function pbiCompila() {
     if (attivo !== 'eff') { pbiEsito('err', 'Passa alla scheda REPORT EFFICIENZE: i valori di Power BI si disegnano solo lì.'); return; }
     var chiave = $('#pbi-box').value;
@@ -1636,15 +1902,16 @@ kbd {
     var sel = $('#pbi-box'), nomeRiquadro = (sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : '').replace(/ \(pieno\)$/, '');
     pbiOccupato = true; pbiDisegna();
     pbiEsito('info', 'Leggo i valori da Power BI…');
-    pbiLeggi(giorno).then(function (d) {
-      if (pbiVuoto(d)) {
+    var pag = pbiPagina();
+    pag.leggi(giorno).then(function (d) {
+      if (pag.vuoto(d)) {
         pbiEsito('info', 'Per il ' + giorno.testo + ' il modello non ha valori: il riquadro non è stato toccato. Prova un altro giorno.');
         return;
       }
-      dest[chiave] = pbiImmagine(d);
+      dest[chiave] = pag.immagine(d);
       pbiOccupato = false;
       update();
-      pbiEsito('ok', 'Riquadro «' + nomeRiquadro + '» compilato con i valori del ' + giorno.testo + (eraPieno ? ' (ha sostituito l\'immagine che c\'era)' : '') + '.', pbiElenco(d));
+      pbiEsito('ok', 'Riquadro «' + nomeRiquadro + '» compilato con la pagina «' + pag.nome + '», valori del ' + giorno.testo + (eraPieno ? ' (ha sostituito l\'immagine che c\'era)' : '') + '.', pag.elenco(d));
       toast('Riquadro compilato da Power BI.');
     }, function (e) {
       pbiEsito('err', e.message);
@@ -1671,6 +1938,8 @@ kbd {
     });
     $('#pbi-prova').addEventListener('click', pbiProva);
     $('#pbi-compila').addEventListener('click', pbiCompila);
+    if (PBI_PAGINE[pbi.pagina]) $('#pbi-pagina').value = pbi.pagina;
+    $('#pbi-pagina').addEventListener('change', function (e) { pbi.pagina = e.target.value; pbiSalva(); });
     pbiDisegna();
   })();
 
