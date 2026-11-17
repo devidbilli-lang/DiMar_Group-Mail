@@ -156,7 +156,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 #sezioni { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
 /* Ogni titolo con i suoi sottotitoli sta in un riquadro col bordo nei colori del logo */
 .sez {
-  display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+  display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px; align-items: center;
   padding: 12px 10px 12px 8px; border: 2px solid transparent; border-radius: 10px;
   background: linear-gradient(var(--surface), var(--surface)) padding-box, var(--btn-grad) border-box;
 }
@@ -167,7 +167,13 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 }
 .sez input[id^="sez-t-"]::selection { background: rgba(255, 255, 255, .35); }
 .sez-opts { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 4px 16px; }
-.sez-n { font-family: var(--f-mono); font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.sez-n { font-family: var(--f-mono); font-size: 17px; font-weight: 700; color: var(--accent); text-align: center; font-variant-numeric: tabular-nums; }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .sez-n {
+    background: linear-gradient(120deg, var(--grad-a) 32%, var(--grad-b) 50%, var(--grad-c) 68%);
+    -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;
+  }
+}
 .sez .chk { font-size: 13px; color: var(--muted); }
 .sez .sez-sub { font-size: 13px; }
 .sez-subs { grid-column: 2 / -1; display: grid; gap: 6px; }
@@ -245,7 +251,6 @@ kbd {
 
 <div class="wrap">
   <header class="top">
-    <p class="eyebrow">Modello per Gmail</p>
     <div class="brand"><span class="logo" role="img" aria-label="DiMar Group"></span><h1>DiMail</h1></div>
     <p class="lede">Scegli il report, incolla gli screenshot nei riquadri, che si adattano da soli, poi copia la mail pronta e incollala in Gmail.</p>
   </header>
