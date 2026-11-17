@@ -25,7 +25,8 @@ img { max-width: 100%; }
   --line: #E1DDD5;
   --fg: #23201C;
   --muted: #6B655C;
-  --accent: #3B7735;
+  --accent: #185CE8;
+  --btn-grad: linear-gradient(90deg, #D42A24 4%, #E8740A 42%, #E8740A 50%, #D4739A 62%, #7A70E6 74%, #1A5BE0 92%);
   --accent-fg: #FFFFFF;
   --stage: #E7E4DD;
   --grad-a: #E52D27; --grad-b: #FF8C00; --grad-m1: #EE8FA8; --grad-m2: #8D82F2; --grad-c: #185CE8;
@@ -36,13 +37,13 @@ img { max-width: 100%; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #161513; --surface: #1F1D1A; --field: #191815; --line: #37332E;
-    --fg: #EEEBE5; --muted: #A59E93; --accent: #7EBF71; --accent-fg: #142010;
+    --fg: #EEEBE5; --muted: #A59E93; --accent: #7EA6FF; --accent-fg: #FFFFFF;
     --stage: #0F0E0C; --grad-a: #F2463F; --grad-b: #FF9A1F; --grad-c: #4480FF; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #161513; --surface: #1F1D1A; --field: #191815; --line: #37332E;
-  --fg: #EEEBE5; --muted: #A59E93; --accent: #7EBF71; --accent-fg: #142010;
+  --fg: #EEEBE5; --muted: #A59E93; --accent: #7EA6FF; --accent-fg: #FFFFFF;
   --stage: #0F0E0C; --grad-a: #F2463F; --grad-b: #FF9A1F; --grad-c: #4480FF; color-scheme: dark;
 }
 
@@ -93,7 +94,7 @@ h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(40px, 7vw
   background: var(--surface); color: var(--muted); cursor: pointer; min-width: 0; overflow-wrap: anywhere;
 }
 .tab:hover { border-color: var(--muted); color: var(--fg); }
-.tab[aria-selected="true"] { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+.tab[aria-selected="true"] { background: var(--btn-grad) border-box; border-color: transparent; color: #FFFFFF; font-weight: 600; text-shadow: 0 1px 1px rgba(0, 0, 0, .35); }
 .tab .foto { opacity: .7; white-space: nowrap; }
 .lbl b { font-weight: 500; color: var(--fg); }
 
@@ -171,10 +172,11 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 
 .btn {
   font: inherit; font-size: 14px; font-weight: 500; padding: 9px 14px; border-radius: 6px;
-  border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer;
+  border: 1.5px solid transparent; color: var(--fg); cursor: pointer;
+  background: linear-gradient(var(--surface), var(--surface)) padding-box, var(--btn-grad) border-box;
 }
-.btn:hover { border-color: var(--muted); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.btn:hover { background: linear-gradient(var(--field), var(--field)) padding-box, var(--btn-grad) border-box; }
+.btn.primary { background: var(--btn-grad) border-box; color: #FFFFFF; font-weight: 600; text-shadow: 0 1px 1px rgba(0, 0, 0, .35); }
 .btn.primary:hover { filter: brightness(1.07); }
 .btn.add { justify-self: start; margin-top: 4px; }
 .link { background: none; border: 0; padding: 0; color: var(--muted); font: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; justify-self: start; }
@@ -192,12 +194,12 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .stage { background: var(--stage); border-radius: 8px; padding: 28px 20px; overflow-x: auto; }
 #mail { width: max-content; margin: 0 auto; background: #FFFFFF; padding: 28px 32px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
 #mail [data-box] { cursor: pointer; }
-#mail [data-box]:focus { outline: 3px solid #3B7735; outline-offset: 2px; }
-#mail [data-box].over { outline: 3px dashed #3B7735; outline-offset: 2px; background-color: #EEF5EC !important; }
+#mail [data-box]:focus { outline: 3px solid #185CE8; outline-offset: 2px; }
+#mail [data-box].over { outline: 3px dashed #185CE8; outline-offset: 2px; background-color: #EAF0FE !important; }
 #mail .hint-box { font-family: var(--f-body); font-size: 15px; line-height: 1.5; color: #6B655C; }
 #mail .hint-box b { color: #23201C; }
 #mail .hint-sub { font-family: var(--f-body); font-style: italic; color: #8B8375; }
-#mail .pick { font: inherit; color: #3B7735; background: none; border: 0; padding: 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+#mail .pick { font: inherit; color: #185CE8; background: none; border: 0; padding: 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 #mail .rm {
   position: absolute; top: 12px; right: 12px; font: 500 14px var(--f-body); padding: 7px 12px;
   border-radius: 6px; border: 0; background: rgba(35, 32, 28, .85); color: #FFFFFF; cursor: pointer;
