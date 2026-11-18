@@ -365,6 +365,12 @@ kbd {
             <select id="pbi-pagina">
               <option value="pannello">Pannello di Controllo</option>
               <option value="lv">Efficienza LV</option>
+              <option value="cc">Efficienza Chanel</option>
+              <option value="taglio">Taglio DG</option>
+              <option value="prepcc">Preparazione DG CC</option>
+              <option value="preplv">Preparazione DG LV</option>
+              <option value="ting">Tingitura</option>
+              <option value="rma">RMA</option>
             </select>
           </div>
           <div class="pbi-row" id="pbi-sfondo-riga">
@@ -385,7 +391,7 @@ kbd {
             <select id="pbi-box"></select>
             <button type="button" class="btn primary" id="pbi-compila" disabled>Compila da Power BI</button>
           </div>
-          <p class="hint">«Compila» ridisegna nel riquadro scelto la pagina di Power BI scelta, con i valori del giorno. Per «Efficienza LV» il periodo sono gli otto giorni che finiscono nel giorno scelto. «Sfondo grafico LV» è l'immagine che nel report sta dietro al grafico «Trend Efficienza»: carica una volta lo stesso file usato in Power BI, poi ricompila per vederla.</p>
+          <p class="hint">«Compila» ridisegna nel riquadro scelto la pagina di Power BI scelta, con i valori del giorno. Per «Efficienza LV», «Efficienza Chanel», «Taglio DG», le due «Preparazione DG», «Tingitura» e «RMA» il periodo sono gli otto giorni che finiscono nel giorno scelto. «Sfondo grafico LV» è l'immagine che nel report sta dietro al grafico «Trend Efficienza»: carica una volta lo stesso file usato in Power BI, poi ricompila per vederla.</p>
           <div class="pbi-ris" id="pbi-ris" role="status" aria-live="polite" hidden></div>
           <p class="hint">L'accesso è il tuo account Microsoft: nella pagina non viene salvata nessuna password. Si apre in una finestrella, quindi gli screenshot già incollati restano al loro posto.</p>
           <details>
@@ -408,7 +414,7 @@ kbd {
           <div class="field" id="auto-nexus-campo">
             <label for="auto-nexus">Indirizzo di NEXUS</label>
             <input type="url" id="auto-nexus" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="https://…">
-            <p class="hint">L'indirizzo con cui apri NEXUS nel browser. Serve solo se un riquadro usa la griglia di NEXUS: il Worker la fotografa com'è in quel momento.</p>
+            <p class="hint">L'indirizzo con cui apri NEXUS nel browser. Serve solo se un riquadro usa la griglia o le note di NEXUS: il Worker le fotografa come sono in quel momento.</p>
           </div>
           <div class="field">
             <label for="auto-oggetto">Oggetto della mail</label>
@@ -1749,13 +1755,29 @@ kbd {
 
     return { src: c.toDataURL('image/png'), ratio: c.height / c.width };
   }
-  // ───────── Pagina «Efficienza LV» ─────────
-  // Periodo: PBI_LV.giorni giorni prima del giorno scelto, fino al giorno scelto compreso (come il filtro Data della pagina).
+  // ───────── Pagine «Efficienza LV» ed «Efficienza Chanel» ─────────
+  // Periodo: «giorni» giorni prima del giorno scelto, fino al giorno scelto compreso (come il filtro Data della pagina).
+  // Le pagine per marchio hanno la stessa struttura (filtri, tre indicatori, card delle linee, Trend Efficienza):
+  // cambiano il marchio, le linee, le misure e i colori. Tutto preso da «Copia query» e dalla pagina di Power BI.
   var PBI_LV = {
     giorni: 7,
     brand: 'LV',
     escluse: ['Mazzei'],   // linee fuori dai tre indicatori e dal grafico
-    linee: ['Sara Visintin', 'Francesca Odorico', 'Mario Todini', 'Mario Todini 2.0', 'Giorgia Strada', 'Mazzei']   // card, nell'ordine della pagina
+    linee: ['Sara Visintin', 'Francesca Odorico', 'Mario Todini', 'Mario Todini 2.0', 'Giorgia Strada', 'Mazzei'],   // card, nell'ordine della pagina
+    media: 'Efficienza_LV', oggi: 'Efficienza Oggi_LV',
+    oggiLinee: 'Presenze CF Worker',   // tabella su cui il visual «Efficienza Oggi» esclude le linee
+    colore: '#F2955A', fondo: '#443738', cartellino: '#825744',
+    sfondo: true   // dietro al grafico può stare l'immagine caricata in «Sfondo grafico LV»
+  };
+  var PBI_CC = {
+    giorni: 7,
+    brand: 'Chanel',
+    escluse: ['Flacca'],
+    linee: ['Andrea Bianchi', 'Renato Cionco', 'Sonia Bandiera', 'Gian Marco Di Virginio', 'Flacca'],
+    media: 'Efficienza_CC', oggi: 'Efficienza Oggi_CC',
+    oggiLinee: 'Qualità CF Worker',
+    colore: '#B6DB6D', fondo: '#38463B', cartellino: '#657B4E',
+    sfondo: false
   };
   function pbiDataDax(q) { return 'DATE(' + q.getFullYear() + ', ' + (q.getMonth() + 1) + ', ' + q.getDate() + ')'; }
   function pbiDataBreve(q) { function due(n) { return ('0' + n).slice(-2); } return due(q.getDate()) + '/' + due(q.getMonth() + 1) + '/' + q.getFullYear(); }
@@ -1764,44 +1786,45 @@ kbd {
     var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v === null || v === undefined ? '' : v));
     return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
   }
-  function pbiLeggiLV(giorno) {
+  function pbiLeggiBrand(P, giorno) {
     function elenco(l) { return '{' + l.map(function (n) { return '"' + n.replace(/"/g, '""') + '"'; }).join(', ') + '}'; }
     function num(v) { return (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v); }
     var al = new Date(giorno.a, giorno.m - 1, giorno.g);
-    var dal = new Date(giorno.a, giorno.m - 1, giorno.g - PBI_LV.giorni);
+    var dal = new Date(giorno.a, giorno.m - 1, giorno.g - P.giorni);
     var fine = new Date(giorno.a, giorno.m - 1, giorno.g + 1);
     // Stessi filtri degli oggetti visivi della pagina (da «Copia query»): linee escluse, periodo, brand
     var def = 'DEFINE\n'
-      + "VAR __Linee = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Nome Linea])), NOT('Presenze CF Worker'[Nome Linea] IN " + elenco(PBI_LV.escluse) + '))\n'
+      + "VAR __Linee = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Nome Linea])), NOT('Presenze CF Worker'[Nome Linea] IN " + elenco(P.escluse) + '))\n'
+      + "VAR __LineeOggi = FILTER(KEEPFILTERS(VALUES('" + P.oggiLinee + "'[Nome Linea])), NOT('" + P.oggiLinee + "'[Nome Linea] IN " + elenco(P.escluse) + '))\n'
       + "VAR __Periodo = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Data])), AND('Presenze CF Worker'[Data] >= " + pbiDataDax(dal) + ", 'Presenze CF Worker'[Data] < " + pbiDataDax(fine) + '))\n'
-      + "VAR __Brand = TREATAS(" + elenco([PBI_LV.brand]) + ", 'Qualità CF Worker'[Brand])\n";
+      + "VAR __Brand = TREATAS(" + elenco([P.brand]) + ", 'Qualità CF Worker'[Brand])\n";
     var col = [
-      ['Media', "CALCULATE('Presenze CF Worker'[Efficienza_LV], __Linee, __Periodo, __Brand)"],
+      ['Media', "CALCULATE('Presenze CF Worker'[" + P.media + "], __Linee, __Periodo, __Brand)"],
       ['Efficacia', "CALCULATE('Qualità CF Worker'[Efficacia], __Linee, __Periodo, __Brand)"],
-      ['Oggi', "CALCULATE('Presenze CF Worker'[Efficienza Oggi_LV], __Linee, __Periodo, __Brand)"],
+      ['Oggi', "CALCULATE('Presenze CF Worker'[" + P.oggi + "], __LineeOggi, __Periodo, __Brand)"],
       ['MinData', "CALCULATE(MIN('Presenze CF Worker'[Data]), __Brand)"],
       ['MaxData', "CALCULATE(MAX('Presenze CF Worker'[Data]), __Brand)"]
     ];
-    PBI_LV.linee.forEach(function (nome, n) {
+    P.linee.forEach(function (nome, n) {
       var f = "TREATAS(" + elenco([nome]) + ", 'Presenze CF Worker'[Nome Linea])";
       col.push(['L' + n + 'E', "CALCULATE('Qualità CF Worker'[Efficienza], " + f + ', __Periodo, __Brand)']);
       col.push(['L' + n + 'C', "CALCULATE('Qualità CF Worker'[Efficacia], " + f + ', __Periodo, __Brand)']);
     });
     var daxValori = def + 'EVALUATE ROW(\n' + col.map(function (c) { return '"' + c[0] + '", ' + c[1]; }).join(',\n') + '\n)';
     var daxTrend = def + "EVALUATE SUMMARIZECOLUMNS('Presenze CF Worker'[Data], __Linee, __Periodo, __Brand,\n"
-      + "\"Efficienza\", 'Presenze CF Worker'[Efficienza_LV],\n\"Efficacia\", 'Qualità CF Worker'[Efficacia],\n\"Target\", IGNORE(CALCULATE(SUM('Target'[Target]))))\n"
+      + "\"Efficienza\", 'Presenze CF Worker'[" + P.media + "],\n\"Efficacia\", 'Qualità CF Worker'[Efficacia],\n\"Target\", IGNORE(CALCULATE(SUM('Target'[Target]))))\n"
       + "ORDER BY 'Presenze CF Worker'[Data]";
     return pbiQuery(daxValori).then(function (righe) {
       var r = righe[0] || {};
       var d = {
-        dal: dal, al: al,
+        P: P, dal: dal, al: al,
         ind: [
-          { k: 'Efficienza Media', v: num(r['[Media]']), c: '#F2955A' },
+          { k: 'Efficienza Media', v: num(r['[Media]']), c: P.colore },
           { k: 'Efficacia', v: num(r['[Efficacia]']), c: '#A58BF5' },
-          { k: 'Efficienza Oggi', v: num(r['[Oggi]']), c: '#F2955A' }
+          { k: 'Efficienza Oggi', v: num(r['[Oggi]']), c: P.colore }
         ],
         min: pbiDataDa(r['[MinData]']), max: pbiDataDa(r['[MaxData]']),
-        linee: PBI_LV.linee.map(function (nome, n) { return { t: nome, eff: num(r['[L' + n + 'E]']), efc: num(r['[L' + n + 'C]']) }; }),
+        linee: P.linee.map(function (nome, n) { return { t: nome, eff: num(r['[L' + n + 'E]']), efc: num(r['[L' + n + 'C]']) }; }),
         trend: []
       };
       return pbiQuery(daxTrend).then(function (tr) {
@@ -1831,10 +1854,11 @@ kbd {
   }
   // Ridisegna la pagina com'è in Power BI. Le misure sono quelle della pagina a 1879 × 1059.
   function pbiImmagineLV(d) {
+    var P = d.P || PBI_LV;
     var SW = 1879, SH = 1059, k = (BOX_W * 2) / SW;
     var F = 'Tahoma, Verdana, "Segoe UI", Arial, sans-serif';
     var SFONDO = '#0B1220', TESSERA = '#131C2E', BORDO = '#1D2A42', BIANCO = '#EEF2F8', TRACCIA = '#F3F2F1';
-    var ARANCIO = '#F2955A', VIOLA = '#A58BF5', VERDE = '#00FF95', MARRONE = '#443738', BLU = '#33345A';
+    var ARANCIO = P.colore, VIOLA = '#A58BF5', VERDE = '#00FF95', MARRONE = P.fondo, BLU = '#33345A';   // ARANCIO e MARRONE: colore e fondo del marchio
     var c = document.createElement('canvas');
     c.width = BOX_W * 2; c.height = Math.round(SH * k);
     var x = c.getContext('2d');
@@ -1921,7 +1945,13 @@ kbd {
 
     // Card delle linee: Efficienza sopra, Efficacia sotto
     var CX = [6, 318, 633, 945, 1257, 1564], CWD = [305, 305, 305, 305, 305, 308];
-    d.linee.slice(0, 6).forEach(function (cd, n) {
+    if (d.linee.length === 5) { CX = [6, 378, 751, 1127, 1505]; CWD = [362, 362, 362, 365, 367]; }
+    else if (d.linee.length !== 6) {   // altro numero di card: stessa fascia, divise in parti uguali
+      CX = []; CWD = [];
+      var quante = Math.max(1, d.linee.length), passoC = (1866 + 8) / quante;
+      for (var qc = 0; qc < quante; qc++) { CX.push(6 + Math.round(qc * passoC)); CWD.push(Math.round(passoC) - 8); }
+    }
+    d.linee.forEach(function (cd, n) {
       var tx = CX[n], tw = CWD[n], ty = 328;
       tessera(tx, ty, tw, 256);
       testo(cd.t, tx + tw / 2, ty + 34, 'bold 29px', BIANCO, 'center', tw - 16);
@@ -1946,7 +1976,7 @@ kbd {
       lx += larghezze[i] + 12;
     });
     // immagine di sfondo caricata dall'utente: dietro alle linee, centrata nella fascia del grafico
-    if (pbiSfondoImg) {
+    if (P.sfondo && pbiSfondoImg) {
       var AX = 236, AY = 758, AW = 1434, AH = 160, fm = pbiSfondo.misura / 100;
       var fs = Math.min(AW / pbiSfondoImg.naturalWidth, AH / pbiSfondoImg.naturalHeight) * fm;
       var iw = pbiSfondoImg.naturalWidth * fs, ih = pbiSfondoImg.naturalHeight * fs;
@@ -1984,12 +2014,20 @@ kbd {
         testo(t, cx, cy + 9, 'bold 22px', '#FFFFFF');
       }
       punti.forEach(function (p, i) {
-        var ya = p.eff === null ? null : py(p.eff) - 26, yb = p.efc === null ? null : py(p.efc) + 30;
+        // il valore più alto ha l'etichetta sopra il suo punto, l'altro sotto: così non si incrociano
+        var efcSopra = p.eff !== null && p.efc !== null && p.efc > p.eff;
+        var ya = p.eff === null ? null : py(p.eff) + (efcSopra ? 30 : -26), yb = p.efc === null ? null : py(p.efc) + (efcSopra ? -26 : 30);
+        if (ya !== null && ya + 17 > YB + 12) ya = py(p.eff) - 26;
         if (yb !== null && yb + 17 > YB + 12) yb = py(p.efc) - 26;
+        // in cima al grafico l'etichetta finirebbe sulla legenda: va sotto il punto
+        if (ya !== null && ya - 16 < YT - 6) ya = py(p.eff) + 30;
+        if (yb !== null && yb - 16 < YT - 6) yb = py(p.efc) + 30;
         if (ya !== null && yb !== null && Math.abs(ya - yb) < 37) {
           if (yb >= ya) yb = ya + 37; else ya = yb + 37;
+          var fuori = Math.max(ya, yb) + 17 - (YB + 12);
+          if (fuori > 0) { ya -= fuori; yb -= fuori; }
         }
-        if (ya !== null) cartellino(perc(p.eff), px(i), ya, '#825744');
+        if (ya !== null) cartellino(perc(p.eff), px(i), ya, P.cartellino);
         if (yb !== null) cartellino(perc(p.efc), px(i), yb, '#5B5291');
       });
       // date sull'asse: su una riga se ci stanno, altrimenti l'anno va a capo
@@ -2011,19 +2049,388 @@ kbd {
   }
 
   // Le pagine di Power BI che DiMail sa ridisegnare
-  // Efficienza LV copre un periodo: «senza dati del giorno» vuol dire che manca proprio il giorno finale
-  // (niente «Efficienza Oggi» e nessun punto del grafico in quella data), anche se i giorni prima ci sono.
+  // ───────── Pagine di reparto (Taglio DG, Preparazione DG CC): filtro Data, due tabelle, due indicatori, media operatori, grafico ─────────
+  // Stessa regola del periodo delle pagine per marchio. Misure, linea e reparto vengono da «Copia query».
+  var PBI_TG = {
+    giorni: 7,
+    titolo: 'Taglio Valentano', titoloColore: '#FFFFFF',
+    linea: 'Taglio DG',
+    media: "'capacityLedgerEntryAPI'[Efficienza_TG]", oggi: "'capacityLedgerEntryAPI'[Efficienza Oggi_TG]",
+    // operatori: per giorno (colonne del grafico) e media del periodo (card); decimali mostrati
+    opGiorno: "CALCULATE(AVERAGE('Presenze CF Worker'[N° Operatori]))", opMedia: "AVERAGE('Presenze CF Worker'[N° Operatori])", opDec: 0, opVoce: 'Operatori Totali (FTE)',
+    soloCon: null,          // misura che deve essere > 0 perché una data conti nel cursore del periodo
+    reparto: 'taglio', brandAttivita: null,   // filtri della tabella delle attività (con brandAttivita compare la colonna Brand)
+    brandRighe: null,       // filtro Brand della tabella Data · Codice · Qtà · TC
+    colore: '#5EFFFF', coloreTesto: '#38FCFF', chiaro: '#E1FDFF'
+  };
+  var PBI_PREP_CC = {
+    giorni: 7,
+    titolo: 'Preparazione DG_CC', titoloColore: '#BDFF23',
+    linea: 'Preparazione DG',
+    media: "'capacityLedgerEntryAPI'[Efficienza_Prep_CC]", oggi: "'capacityLedgerEntryAPI'[Efficienza Oggi_PRE_CC]",
+    opGiorno: "'Presenze CF Worker'[Operatori_PreCC]", opMedia: "'Presenze CF Worker'[Media_Operatori_PreCC]", opDec: 1, opVoce: 'Operatori (FTE)',
+    soloCon: "'Presenze CF Worker'[Operatori_PreCC]",
+    reparto: 'prep', brandAttivita: 'Chanel',
+    brandRighe: 'CC',
+    colore: '#BDFF23', coloreTesto: '#BDFF23', chiaro: '#E9FFB5'
+  };
+  var PBI_PREP_LV = {
+    giorni: 7,
+    titolo: 'Preparazione DG_LV', titoloColore: '#FF701B',
+    linea: 'Preparazione DG',
+    media: "'capacityLedgerEntryAPI'[Efficienza_Prep_LV]", oggi: "'capacityLedgerEntryAPI'[Efficienza Oggi_PRE_LV]",
+    opGiorno: "'Presenze CF Worker'[Operatori_PreLV]", opMedia: "'Presenze CF Worker'[Media_Operatori_PreLV]", opDec: 1, opVoce: 'Operatori Totali (FTE)',
+    soloCon: null,
+    reparto: 'prep', brandAttivita: 'LV',
+    brandRighe: 'LV',
+    colore: '#FF701B', coloreTesto: '#FF701B', coloreLinea: '#E66C37', chiaro: '#FFD6BE'
+  };
+  var PBI_TING = {
+    giorni: 7,
+    titolo: 'Tingitura', titoloColore: '#FFFFFF',
+    linea: 'Tingitura',
+    media: "'capacityLedgerEntryAPI'[Efficienza_TING]", oggi: "'capacityLedgerEntryAPI'[Efficienza Oggi_TING]",
+    opGiorno: "CALCULATE(AVERAGE('Presenze CF Worker'[N° Operatori]))", opMedia: "AVERAGE('Presenze CF Worker'[N° Operatori])", opDec: 0, opVoce: 'Operatori Totali (FTE)',
+    soloCon: null,
+    reparto: 'tintura', brandAttivita: null,
+    brandRighe: null,
+    colore: '#3FB2FF', coloreTesto: '#3FB2FF', chiaro: '#BBE4FF',
+    coloreTarget: '#BDFF23', coloreQta: '#3FB2FF'   // in questa pagina il Target è verde e la colonna Qtà è azzurra
+  };
+  var PBI_RMA = {
+    giorni: 7,
+    titolo: 'RMA', titoloColore: '#FFFFFF',
+    linea: 'RMA',
+    media: "'capacityLedgerEntryAPI'[Efficienza_RMA]", oggi: "'capacityLedgerEntryAPI'[Efficienza Oggi_RMA]",
+    opGiorno: "CALCULATE(AVERAGE('Presenze CF Worker'[N° Operatori]))", opMedia: "AVERAGE('Presenze CF Worker'[N° Operatori])", opDec: 0, opVoce: 'Operatori Totali (FTE)',
+    soloCon: null,
+    reparto: 'rma', brandAttivita: null,
+    brandRighe: null,
+    colore: '#FB3CED', coloreTesto: '#FB3CED', chiaro: '#FDBFF9',
+    coloreTarget: '#BFFF48', coloreQta: '#FB3CED'
+  };
+  function pbiLeggiReparto(P, giorno) {
+    function elenco(l) { return '{' + l.map(function (n) { return '"' + n.replace(/"/g, '""') + '"'; }).join(', ') + '}'; }
+    function num(v) { return (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v); }
+    function campo(x, fine) { var r = null; Object.keys(x).forEach(function (kk) { if (kk.slice(-fine.length) === fine) r = x[kk]; }); return r; }
+    var al = new Date(giorno.a, giorno.m - 1, giorno.g);
+    var dal = new Date(giorno.a, giorno.m - 1, giorno.g - P.giorni);
+    var fine = new Date(giorno.a, giorno.m - 1, giorno.g + 1);
+    var def = 'DEFINE\n'
+      + "VAR __Periodo = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Data])), AND('Presenze CF Worker'[Data] >= " + pbiDataDax(dal) + ", 'Presenze CF Worker'[Data] < " + pbiDataDax(fine) + '))\n'
+      + "VAR __Linea = TREATAS(" + elenco([P.linea]) + ", 'Presenze CF Worker'[Nome Linea])\n";
+    var daxValori = def + 'EVALUATE ROW(\n'
+      + '"Media", CALCULATE(' + P.media + ', __Periodo, __Linea),\n'
+      + '"Oggi", CALCULATE(' + P.oggi + ', __Periodo, __Linea),\n'
+      + '"Operatori", CALCULATE(' + P.opMedia + ', __Periodo, __Linea),\n'
+      + (P.soloCon
+        ? "\"MinData\", MINX(FILTER(CALCULATETABLE(VALUES('Presenze CF Worker'[Data]), __Linea), CALCULATE(" + P.soloCon + ", __Linea) > 0), 'Presenze CF Worker'[Data]),\n"
+          + "\"MaxData\", MAXX(FILTER(CALCULATETABLE(VALUES('Presenze CF Worker'[Data]), __Linea), CALCULATE(" + P.soloCon + ", __Linea) > 0), 'Presenze CF Worker'[Data])\n)"
+        : "\"MinData\", CALCULATE(MIN('Presenze CF Worker'[Data]), __Linea),\n"
+          + "\"MaxData\", CALCULATE(MAX('Presenze CF Worker'[Data]), __Linea)\n)");
+    var daxTrend = def + "EVALUATE SUMMARIZECOLUMNS('Presenze CF Worker'[Data], __Periodo, __Linea,\n"
+      + '"Operatori", ' + P.opGiorno + ",\n\"Target\", IGNORE(CALCULATE(SUM('Target'[Target]))),\n\"Efficienza\", " + P.media + ")\n"
+      + "ORDER BY 'Presenze CF Worker'[Data]";
+    var daxAttivita = def + "VAR __Reparto = TREATAS(" + elenco([P.reparto]) + ", 'Inserimento Attività CF Worker'[Reparto])\n"
+      + (P.brandAttivita ? "VAR __BrandAtt = TREATAS(" + elenco([P.brandAttivita]) + ", 'Inserimento Attività CF Worker'[Brand])\n" : '')
+      + "EVALUATE SUMMARIZECOLUMNS('Inserimento Attività CF Worker'[Data], 'Inserimento Attività CF Worker'[Tipologia], "
+      + (P.brandAttivita ? "'Inserimento Attività CF Worker'[Brand], __Reparto, __BrandAtt" : '__Reparto') + ", __Periodo, __Linea,\n"
+      + "\"Tempo\", CALCULATE(SUM('Inserimento Attività CF Worker'[Tempo (min)])))\n"
+      + "ORDER BY 'Inserimento Attività CF Worker'[Data] DESC, 'Inserimento Attività CF Worker'[Tipologia]"
+      + (P.brandAttivita ? ", 'Inserimento Attività CF Worker'[Brand]" : '');
+    // Tabella Data · Codice · Qtà · TC: le righe più recenti (nella mail ne entrano una decina)
+    var daxRighe = def + (P.brandRighe ? "VAR __BrandRighe = TREATAS(" + elenco([P.brandRighe]) + ", 'capacityLedgerEntryAPI'[Brand])\n" : '')
+      + "VAR __Righe = SUMMARIZECOLUMNS('capacityLedgerEntryAPI'[Data], 'capacityLedgerEntryAPI'[Codice], 'capacityLedgerEntryAPI'[TC], "
+      + (P.brandRighe ? '__BrandRighe, ' : '') + "__Periodo, __Linea,\n"
+      + "\"Qta\", CALCULATE(SUM('capacityLedgerEntryAPI'[OutputQuantity])))\n"
+      + "EVALUATE TOPN(60, __Righe, 'capacityLedgerEntryAPI'[Data], 0, 'capacityLedgerEntryAPI'[Codice], 1, 'capacityLedgerEntryAPI'[TC], 1)\n"
+      + "ORDER BY 'capacityLedgerEntryAPI'[Data] DESC, 'capacityLedgerEntryAPI'[Codice], 'capacityLedgerEntryAPI'[TC]";
+    var d = { R: P, dal: dal, al: al, trend: [], attivita: [], righe: [] };
+    return pbiQuery(daxValori).then(function (righe) {
+      var r = righe[0] || {};
+      d.media = num(r['[Media]']); d.oggi = num(r['[Oggi]']); d.operatori = num(r['[Operatori]']);
+      d.min = pbiDataDa(r['[MinData]']); d.max = pbiDataDa(r['[MaxData]']);
+      return pbiQuery(daxTrend);
+    }).then(function (tr) {
+      tr.forEach(function (x) {
+        var quando = pbiDataDa(campo(x, '[Data]'));
+        if (quando) d.trend.push({ data: quando, op: num(x['[Operatori]']), target: num(x['[Target]']), eff: num(x['[Efficienza]']) });
+      });
+      d.trend.sort(function (a, b) { return a.data - b.data; });
+      return pbiQuery(daxAttivita);
+    }).then(function (at) {
+      at.forEach(function (x) {
+        var quando = pbiDataDa(campo(x, '[Data]'));
+        if (quando) d.attivita.push({ data: quando, tip: String(campo(x, '[Tipologia]') === null ? '' : campo(x, '[Tipologia]')), brand: String(campo(x, '[Brand]') === null ? '' : campo(x, '[Brand]')), tempo: num(x['[Tempo]']) });
+      });
+      d.attivita.sort(function (a, b) { return (b.data - a.data) || (a.tip < b.tip ? -1 : a.tip > b.tip ? 1 : 0) || (a.brand < b.brand ? -1 : a.brand > b.brand ? 1 : 0); });
+      return pbiQuery(daxRighe);
+    }).then(function (rg) {
+      rg.forEach(function (x) {
+        var quando = pbiDataDa(campo(x, '[Data]'));
+        if (quando) d.righe.push({ data: quando, codice: String(campo(x, '[Codice]') === null ? '' : campo(x, '[Codice]')), tc: num(campo(x, '[TC]')), qta: num(x['[Qta]']) });
+      });
+      d.righe.sort(function (a, b) { return (b.data - a.data) || (a.codice < b.codice ? -1 : a.codice > b.codice ? 1 : 0) || ((a.tc || 0) - (b.tc || 0)); });
+      return d;
+    });
+  }
+  // Numero all'italiana con il punto delle migliaia anche a quattro cifre (1.388), come lo scrive Power BI
+  function pbiNumero(v, dec) {
+    if (v === null || v === undefined || isNaN(Number(v))) return '--';
+    var p = Math.abs(Number(v)).toFixed(dec).split('.');
+    return (Number(v) < 0 && Number(Number(v).toFixed(dec)) !== 0 ? '-' : '') + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (p[1] ? ',' + p[1] : '');
+  }
+  function pbiElencoReparto(d) {
+    var v = [['Periodo', pbiDataBreve(d.dal) + ' – ' + pbiDataBreve(d.al)], ['Efficienza Media', pbiPerc(d.media)], ['Efficienza Oggi', pbiPerc(d.oggi)], ['Media Operatori', pbiNumero(d.operatori, 1)]];
+    d.trend.forEach(function (x) { v.push(['Grafico ' + pbiDataBreve(x.data), 'Operatori ' + pbiNumero(x.op, 1) + ' · Efficienza ' + pbiPerc(x.eff) + ' · Target ' + pbiPerc(x.target)]); });
+    d.attivita.forEach(function (x) { v.push(['Attività ' + pbiDataBreve(x.data), x.tip + (x.brand ? ' · ' + x.brand : '') + ' · ' + pbiNumero(x.tempo, 0) + ' min']); });
+    d.righe.slice(0, 12).forEach(function (x) { v.push(['Riga ' + pbiDataBreve(x.data), x.codice + ' · Qtà ' + pbiNumero(x.qta, 0) + ' · TC ' + pbiNumero(x.tc, 1)]); });
+    if (d.righe.length > 12) v.push(['Righe', 'altre ' + (d.righe.length - 12) + ' non elencate']);
+    return v;
+  }
+  function pbiVuotoReparto(d) {
+    return d.media === null && d.oggi === null && d.operatori === null && !d.attivita.length && !d.righe.length &&
+      d.trend.every(function (x) { return x.op === null && x.eff === null; });
+  }
+  function pbiSenzaGiornoReparto(d) {
+    if (pbiVuotoReparto(d)) return true;
+    if (d.oggi !== null && pbiStessoGiorno(d.al, pbiOggiData())) return false;
+    return !d.trend.some(function (p) { return pbiStessoGiorno(p.data, d.al) && (p.eff !== null || (p.op !== null && p.op > 0)); });
+  }
+  // Ridisegna la pagina com'è in Power BI. Le misure sono quelle della pagina a 1881 × 1056.
+  function pbiImmagineReparto(d) {
+    var P = d.R, SW = 1881, SH = 1056, k = (BOX_W * 2) / SW;
+    var F = 'Tahoma, Verdana, "Segoe UI", Arial, sans-serif';
+    var SFONDO = '#0B1220', TESSERA = '#131C2E', BORDO = '#1D2A42', BIANCO = '#FFFFFF', TRACCIA = '#F3F2F1';
+    var CIANO = P.colore, CIANO_T = P.coloreTesto, CIANO_CHIARO = P.chiaro, LINEA = P.coloreLinea || P.coloreTesto, ORO = '#FFC654', BARRA = '#65573B', VIOLA = P.coloreTarget || '#C750FF', LILLA = '#BB77FF', LILLA_CHIARO = '#F0E1FF', VERDE = P.coloreQta || '#27BB73', GRIGLIA = '#4A4D53';
+    var c = document.createElement('canvas');
+    c.width = BOX_W * 2; c.height = Math.round(SH * k);
+    var x = c.getContext('2d');
+    x.scale(k, k);
+    x.fillStyle = SFONDO; x.fillRect(0, 0, SW, SH);
+    x.textBaseline = 'alphabetic';
+    function perc(v) { return v === null ? '--' : Math.round(v * 100) + '%'; }
+    function rr(x0, y0, w, h, r) {
+      x.beginPath();
+      x.moveTo(x0 + r, y0); x.lineTo(x0 + w - r, y0); x.quadraticCurveTo(x0 + w, y0, x0 + w, y0 + r);
+      x.lineTo(x0 + w, y0 + h - r); x.quadraticCurveTo(x0 + w, y0 + h, x0 + w - r, y0 + h);
+      x.lineTo(x0 + r, y0 + h); x.quadraticCurveTo(x0, y0 + h, x0, y0 + h - r);
+      x.lineTo(x0, y0 + r); x.quadraticCurveTo(x0, y0, x0 + r, y0);
+      x.closePath();
+    }
+    function tessera(x0, y0, w, h) {
+      rr(x0, y0, w, h, 10);
+      x.fillStyle = TESSERA; x.fill();
+      x.lineWidth = 2; x.strokeStyle = BORDO; x.stroke();
+    }
+    function testo(t, px, y, font, colore, allinea, max) {
+      x.font = font + ' ' + F; x.fillStyle = colore; x.textAlign = allinea || 'center';
+      if (max) x.fillText(t, px, y, max); else x.fillText(t, px, y);
+    }
+
+    // Filtro Data
+    tessera(3, 8, 492, 168);
+    testo('Data', 16, 37, '22px', BIANCO, 'left');
+    [[28, d.dal], [237, d.al]].forEach(function (b) {
+      x.fillStyle = CIANO_CHIARO; x.fillRect(b[0], 56, 200, 60);
+      testo(pbiDataBreve(b[1]), b[0] + 12, 97, '28px', '#000000', 'left');
+      x.lineWidth = 1; x.strokeStyle = '#8FA4A8'; x.beginPath(); x.moveTo(b[0] + 169, 56); x.lineTo(b[0] + 169, 116); x.stroke();
+      x.lineWidth = 1.5; x.strokeStyle = '#1B2A4A';
+      x.strokeRect(b[0] + 178, 83, 12, 11); x.beginPath(); x.moveTo(b[0] + 178, 86.5); x.lineTo(b[0] + 190, 86.5); x.stroke();
+    });
+    var sx0 = 47, sx1 = 458, sy = 146;
+    x.lineWidth = 4; x.strokeStyle = TRACCIA; x.lineCap = 'round';
+    x.beginPath(); x.moveTo(sx0, sy); x.lineTo(sx1, sy); x.stroke(); x.lineCap = 'butt';
+    function pos(q) {
+      if (!d.min || !d.max || d.max <= d.min) return 1;
+      return Math.max(0, Math.min(1, (q - d.min) / (d.max - d.min)));
+    }
+    [pos(d.dal), pos(d.al)].forEach(function (f) {
+      x.beginPath(); x.arc(sx0 + (sx1 - sx0) * f, sy, 17, 0, 2 * Math.PI);
+      x.fillStyle = CIANO; x.fill();
+      x.lineWidth = 2; x.strokeStyle = BIANCO; x.stroke();
+    });
+
+    // Tabelle: intestazione, riga colorata, righe alterne. colonne: [titolo, x0, x1, colore titolo, colore valori, funzione testo]
+    function tabella(ty, th, yTit, yRiga, colonne, fila, chiaro, righe, conBarra) {
+      tessera(3, ty, 492, th);
+      var X0 = colonne[0][1], X1 = colonne[colonne.length - 1][2], H = 30.8, fondo = ty + th - (conBarra ? 14 : 10);
+      colonne.forEach(function (cl) {
+        var cx = (cl[1] + cl[2]) / 2, tt = cl[0].split('\n');
+        tt.forEach(function (t, i) { testo(t, cx, yTit - (tt.length - 1 - i) * 27, '22px', cl[3]); });
+      });
+      x.fillStyle = BIANCO; x.beginPath(); x.moveTo(24, yRiga - 13); x.lineTo(38, yRiga - 13); x.lineTo(31, yRiga - 6); x.closePath(); x.fill();
+      x.fillStyle = fila; x.fillRect(X0, yRiga, X1 - X0, 6);
+      x.save(); x.beginPath(); x.rect(X0, yRiga + 6, X1 - X0, fondo - (yRiga + 6)); x.clip();
+      righe.forEach(function (r, i) {
+        var y0 = yRiga + 6 + i * H;
+        if (y0 >= fondo) return;
+        x.fillStyle = i % 2 ? chiaro : BIANCO; x.fillRect(X0, y0, X1 - X0, H);
+        colonne.forEach(function (cl, n) {
+          if (cl[6]) { x.fillStyle = cl[6]; x.fillRect(cl[1], y0, cl[2] - cl[1], H); }   // cella colorata (Brand)
+          if (n) { x.fillStyle = '#C9CED3'; x.fillRect(cl[1] - 1, y0, 1, H); }
+          testo(cl[5](r), (cl[1] + cl[2]) / 2, y0 + 23, '22px', cl[4], 'center', cl[2] - cl[1] - 8);
+        });
+      });
+      x.restore();
+      if (conBarra && righe.length * H > fondo - (yRiga + 6)) {   // più righe di quante ne entrano: la barra di scorrimento, come nella pagina
+        var visibili = (fondo - (yRiga + 6)) / (righe.length * H), bh = fondo - (ty + 14);
+        rr(X1 + 1, ty + 14, 11, Math.max(24, bh * visibili), 5); x.fillStyle = '#898D96'; x.fill();
+      }
+    }
+    tabella(181, 421, 217, 237, [
+      ['Data', 17, 162, BIANCO, '#000000', function (r) { return pbiDataBreve(r.data); }],
+      ['Codice', 162, 334, BIANCO, '#000000', function (r) { return r.codice; }],
+      ['Qtà', 334, 402, VERDE, VERDE, function (r) { return pbiNumero(r.qta, 0); }],
+      ['TC', 402, 469, BIANCO, '#000000', function (r) { return pbiNumero(r.tc, 1); }]
+    ], CIANO, CIANO_CHIARO, d.righe, true);
+    tabella(610, 444, 673, 692, P.brandAttivita ? [
+      ['Data', 17, 149, BIANCO, '#000000', function (r) { return pbiDataBreve(r.data); }],
+      ['Tipologia', 149, 291, BIANCO, '#000000', function (r) { return r.tip; }],
+      ['Brand', 291, 372, BIANCO, '#000000', function (r) { return r.brand; }, CIANO],
+      ['Tempo\n(min)', 372, 459, LILLA, LILLA, function (r) { return pbiNumero(r.tempo, 0); }]
+    ] : [
+      ['Data', 17, 143, BIANCO, '#000000', function (r) { return pbiDataBreve(r.data); }],
+      ['Tipologia', 143, 369, BIANCO, '#000000', function (r) { return r.tip; }],
+      ['Tempo\n(min)', 369, 459, LILLA, LILLA, function (r) { return pbiNumero(r.tempo, 0); }]
+    ], LILLA, LILLA_CHIARO, d.attivita, false);
+
+    // Due indicatori a semicerchio e, in mezzo, la media degli operatori
+    [[500, 'Efficienza Media', d.media], [1336, 'Efficienza Oggi', d.oggi]].forEach(function (g) {
+      var tx = g[0], tw = 538;
+      tessera(tx, 8, tw, 264);
+      testo(g[1], tx + tw / 2, 40, '27px', CIANO_T);
+      var cx = tx + 258, cy = 253, R = 170.5, LW = 61;
+      x.lineWidth = LW; x.lineCap = 'butt';
+      x.strokeStyle = TRACCIA; x.beginPath(); x.arc(cx, cy, R, Math.PI, 2 * Math.PI); x.stroke();
+      if (g[2] !== null) {
+        var q = Math.max(0, Math.min(1, g[2]));
+        if (q > 0) { x.strokeStyle = CIANO; x.beginPath(); x.arc(cx, cy, R, Math.PI, Math.PI + Math.PI * q); x.stroke(); }
+      }
+      var tv = g[2] === null ? '(Vuoto)' : perc(g[2]);
+      testo(tv, cx, cy - 13, (tv.length > 4 ? 54 : tv.length > 3 ? 62 : 74) + 'px', CIANO_T);
+      testo('0%', cx - R - LW / 2 - 8, cy, '21px', BIANCO, 'right');
+      testo('100%', cx + R + LW / 2 + 8, cy, '21px', BIANCO, 'left');
+    });
+    tessera(1043, 8, 287, 264);
+    x.lineWidth = 6; x.strokeStyle = ORO; x.strokeRect(1058, 25, 255, 231);
+    testo('Media Operatori', 1190, 113, '29px', ORO, 'center', 240);
+    testo(pbiNumero(d.operatori, 1), 1190, 192, 'bold 68px', ORO);
+
+    // Grafico: colonne degli operatori (asse sinistro), linee di Target ed Efficienza (asse destro)
+    tessera(500, 277, 1374, 777);
+    testo(P.titolo, 1185, 332, 'bold 52px', P.titoloColore, 'center', 1300);
+    var voci = [[P.opVoce, ORO, true], ['Target', VIOLA, false], ['Efficienza', LINEA, false]];
+    x.font = '23px ' + F;
+    var larghezze = voci.map(function (v) { return 20 + x.measureText(v[0]).width; }), tot = 0;
+    larghezze.forEach(function (w, i) { tot += w + (i ? 12 : 0); });
+    var lx = 1185 - tot / 2;
+    voci.forEach(function (v, i) {
+      x.beginPath(); x.arc(lx + 8, 373, v[2] ? 6.5 : 8, 0, 2 * Math.PI);
+      if (v[2]) { x.fillStyle = BARRA; x.fill(); x.lineWidth = 3; x.strokeStyle = v[1]; x.stroke(); } else { x.fillStyle = v[1]; x.fill(); }
+      testo(v[0], lx + 20, 381, '23px', BIANCO, 'left');
+      lx += larghezze[i] + 12;
+    });
+    var punti = d.trend, np = punti.length;
+    if (np) {
+      var GX0 = 548, GX1 = 1795, BX0 = 612, BX1 = 1729, YT = 430, YB = 967;
+      var maxOp = 0, maxDx = 1;
+      punti.forEach(function (p) { if (p.op !== null && p.op > maxOp) maxOp = p.op; if (p.eff !== null && p.eff > maxDx) maxDx = p.eff; if (p.target !== null && p.target > maxDx) maxDx = p.target; });
+      var topSx = (maxOp > 0 ? maxOp : 1) * 1.04, topDx = maxDx * 1.012;
+      function ySx(v) { return YB - (v / topSx) * (YB - YT); }
+      function yDx(v) { return YB - (v / topDx) * (YB - YT); }
+      // passo «tondo» dell'asse sinistro: circa cinque tacche
+      var grezzo = topSx / 5, pot = Math.pow(10, Math.floor(Math.log(grezzo) / Math.LN10)), rap = grezzo / pot;
+      var passo = (rap < 1.5 ? 1 : rap < 3.5 ? 2 : rap < 7.5 ? 5 : 10) * pot;
+      for (var t = 0; t <= topSx + 1e-9; t += passo) {
+        x.fillStyle = GRIGLIA; x.fillRect(GX0, Math.round(ySx(t)), GX1 - GX0, 1.5);
+        testo(pbiNumero(Math.round(t * 100) / 100, passo < 1 ? 1 : 0), 535, ySx(t) + 8, '21px', BIANCO, 'right');
+      }
+      var grezzoDx = topDx / 5, potDx = Math.pow(10, Math.floor(Math.log(grezzoDx) / Math.LN10)), rapDx = grezzoDx / potDx;
+      var passoDx = (rapDx < 1.5 ? 1 : rapDx < 3.5 ? 2 : rapDx < 7.5 ? 5 : 10) * potDx;
+      for (var q2 = 0; q2 <= topDx + 1e-9; q2 += passoDx) {
+        x.fillStyle = '#6C7078'; x.fillRect(1785, Math.round(yDx(q2)), 10, 1.5);
+        testo(Math.round(q2 * 100) + '%', 1808, yDx(q2) + 8, '21px', BIANCO, 'left');
+      }
+      var slot = (BX1 - BX0) / np, lb = slot * 0.887;
+      function cxp(i) { return BX0 + (i + 0.5) * slot; }
+      punti.forEach(function (p, i) {
+        if (p.op === null) return;
+        var y0 = ySx(p.op), x0 = cxp(i) - lb / 2;
+        x.fillStyle = BARRA; x.fillRect(x0, y0, lb, YB - y0);
+        x.lineWidth = 2; x.strokeStyle = ORO; x.strokeRect(x0, y0, lb, YB - y0);
+        testo(pbiNumero(p.op, P.opDec), cxp(i), y0 - 14, '22px', ORO);
+      });
+      function linea(campo, colore, spessore) {
+        x.lineWidth = spessore; x.strokeStyle = colore; x.lineJoin = 'round'; x.lineCap = 'round';
+        x.beginPath();
+        var aperta = false;
+        punti.forEach(function (p, i) {
+          if (p[campo] === null) { aperta = false; return; }
+          if (aperta) x.lineTo(cxp(i), yDx(p[campo])); else { x.moveTo(cxp(i), yDx(p[campo])); aperta = true; }
+        });
+        x.stroke(); x.lineJoin = 'miter'; x.lineCap = 'butt';
+      }
+      linea('target', VIOLA, 4); linea('eff', LINEA, 5);
+      // etichette dell'efficienza: sopra il punto, sotto nei minimi e quando in alto non c'è posto
+      punti.forEach(function (p, i) {
+        if (p.eff === null) return;
+        var prima = i > 0 ? punti[i - 1].eff : null, dopo = i < np - 1 ? punti[i + 1].eff : null;
+        var minimo = prima !== null && dopo !== null && prima > p.eff && dopo > p.eff;   // solo i minimi in mezzo al grafico
+        var cy = yDx(p.eff) + (minimo ? 26 : -24);
+        if (cy - 17 < YT + 30) cy = yDx(p.eff) + 30;
+        // non deve finire sul numero scritto sopra la colonna dello stesso giorno
+        if (p.op !== null) {
+          var n0 = ySx(p.op) - 38, n1 = ySx(p.op) - 6;
+          if (cy + 17 > n0 && cy - 17 < n1) { cy = yDx(p.eff) + 30; if (cy + 17 > n0 && cy - 17 < n1) cy = n1 + 24; }
+        }
+        if (cy + 17 > YB - 4) cy = yDx(p.eff) - 24;
+        var tx = pbiNumero(p.eff * 100, 1) + '%';
+        x.font = '22px ' + F;
+        var w = x.measureText(tx).width + 22;
+        rr(cxp(i) - w / 2, cy - 17, w, 34, 6); x.fillStyle = 'rgba(34,37,44,0.82)'; x.fill();
+        testo(tx, cxp(i), cy + 8, '22px', LINEA);
+      });
+      punti.forEach(function (p, i) {
+        var parole = p.data.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).split(' ');
+        x.font = '22px ' + F;
+        var r1 = parole.slice(), r2 = [];
+        while (r1.length > 1 && x.measureText(r1.join(' ')).width > slot - 14) r2.unshift(r1.pop());
+        testo(r1.join(' '), cxp(i), 1005, '22px', BIANCO, 'center', slot - 6);
+        if (r2.length) testo(r2.join(' '), cxp(i), 1032, '22px', BIANCO, 'center', slot - 6);
+      });
+    } else {
+      testo('Nessun dato nel periodo', 1185, 700, '26px', '#A9B3C6');
+    }
+    return { src: c.toDataURL('image/png'), ratio: c.height / c.width };
+  }
+
+  // Le pagine per marchio coprono un periodo: «senza dati del giorno» vuol dire che manca proprio il giorno finale,
+  // anche se i giorni prima ci sono. Il giorno c'è se il grafico ha il suo punto; «Efficienza Oggi» guarda sempre la
+  // giornata in corso, quindi conta solo quando il giorno della pagina è oggi.
+  function pbiStessoGiorno(a, b) { return !!a && !!b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+  function pbiOggiData() {   // il giorno di oggi in Italia, qualunque sia il fuso del browser
+    try {
+      var f = /^(\d{4})-(\d{2})-(\d{2})$/.exec(new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' }).format(new Date()));
+      if (f) return new Date(Number(f[1]), Number(f[2]) - 1, Number(f[3]));
+    } catch (e) {}
+    return new Date();
+  }
   function pbiSenzaGiornoLV(d) {
     if (pbiVuotoLV(d)) return true;
-    if (d.ind[2] && d.ind[2].v !== null) return false;
-    return !d.trend.some(function (p) {
-      return p.data && d.al && p.data.getFullYear() === d.al.getFullYear() && p.data.getMonth() === d.al.getMonth() && p.data.getDate() === d.al.getDate() && (p.eff !== null || p.efc !== null);
-    });
+    if (d.ind[2] && d.ind[2].v !== null && pbiStessoGiorno(d.al, pbiOggiData())) return false;
+    return !d.trend.some(function (p) { return pbiStessoGiorno(p.data, d.al) && (p.eff !== null || p.efc !== null); });
   }
   // senzaGiorno: nell'invio automatico una pagina senza dati per il giorno della mail viene lasciata fuori
   var PBI_PAGINE = {
     pannello: { nome: 'Pannello di Controllo', leggi: pbiLeggi, elenco: pbiElenco, vuoto: pbiVuoto, senzaGiorno: pbiVuoto, immagine: pbiImmagine },
-    lv: { nome: 'Efficienza LV', leggi: pbiLeggiLV, elenco: pbiElencoLV, vuoto: pbiVuotoLV, senzaGiorno: pbiSenzaGiornoLV, immagine: pbiImmagineLV }
+    lv: { nome: 'Efficienza LV', leggi: function (g) { return pbiLeggiBrand(PBI_LV, g); }, elenco: pbiElencoLV, vuoto: pbiVuotoLV, senzaGiorno: pbiSenzaGiornoLV, immagine: pbiImmagineLV },
+    cc: { nome: 'Efficienza Chanel', leggi: function (g) { return pbiLeggiBrand(PBI_CC, g); }, elenco: pbiElencoLV, vuoto: pbiVuotoLV, senzaGiorno: pbiSenzaGiornoLV, immagine: pbiImmagineLV },
+    taglio: { nome: 'Taglio DG', leggi: function (g) { return pbiLeggiReparto(PBI_TG, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto },
+    prepcc: { nome: 'Preparazione DG CC', leggi: function (g) { return pbiLeggiReparto(PBI_PREP_CC, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto },
+    preplv: { nome: 'Preparazione DG LV', leggi: function (g) { return pbiLeggiReparto(PBI_PREP_LV, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto },
+    ting: { nome: 'Tingitura', leggi: function (g) { return pbiLeggiReparto(PBI_TING, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto },
+    rma: { nome: 'RMA', leggi: function (g) { return pbiLeggiReparto(PBI_RMA, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto }
   };
   function pbiPagina() { return PBI_PAGINE[$('#pbi-pagina').value] || PBI_PAGINE.pannello; }
 
@@ -2127,6 +2534,7 @@ kbd {
   function fonteAuto(id) {
     if (PBI_PAGINE[id]) return { nome: PBI_PAGINE[id].nome, tipo: 'pbi' };
     if (id === 'nexus') return { nome: 'NEXUS · griglia Entra in produzione', tipo: 'nexus' };
+    if (id === 'nexus_note') return { nome: 'NEXUS · note del giorno', tipo: 'nexus_note' };
     return null;
   }
   function nexusValido(u) {
@@ -2157,7 +2565,7 @@ kbd {
     $('#auto-lista').innerHTML = voci.map(function (v, n) {
       return '<div class="auto-riga"><label class="flabel" for="auto-s-' + n + '">' + esc(v[1]) + '</label>' +
         '<select id="auto-s-' + n + '" data-chiave="' + esc(v[0]) + '"><option value="">Nessuna</option>' +
-        Object.keys(PBI_PAGINE).concat(['nexus']).map(function (id) { return '<option value="' + id + '"' + (m.auto[v[0]] === id ? ' selected' : '') + '>' + esc(fonteAuto(id).nome) + '</option>'; }).join('') +
+        Object.keys(PBI_PAGINE).concat(['nexus', 'nexus_note']).map(function (id) { return '<option value="' + id + '"' + (m.auto[v[0]] === id ? ' selected' : '') + '>' + esc(fonteAuto(id).nome) + '</option>'; }).join('') +
         '</select></div>';
     }).join('');
     var og = $('#auto-oggetto');
@@ -2177,7 +2585,7 @@ kbd {
   $('#auto-copia').addEventListener('click', function () {
     var m = store.modelli.eff, quanti = Object.keys(m.auto || {}).length;
     if (!quanti) { toast('Scegli prima almeno una pagina per un riquadro.'); return; }
-    var usaNexus = Object.keys(m.auto).some(function (k) { return m.auto[k] === 'nexus'; });
+    var usaNexus = Object.keys(m.auto).some(function (k) { return m.auto[k] === 'nexus' || m.auto[k] === 'nexus_note'; });
     if (usaNexus && !nexusValido(m.nexusUrl)) { toast('Scrivi l\'indirizzo di NEXUS (comincia con https://).'); $('#auto-nexus').focus(); return; }
     var prima = state; state = m;
     var dest = indirizzi();
@@ -2227,8 +2635,9 @@ kbd {
       } catch (e) { return 1; }   // se non si riesce a guardare la foto, non si blocca la mail per questo
     }
     var NEXUS_COLORE_MIN = 0.001;   // sotto l'uno per mille la griglia è tutta grigia: una sola linea attiva ne porta molto di più
-    function fotoNexus() {
-      return chiama('/auto/schermata', undefined, '&fonte=nexus').then(function (r) {
+    // fonte: «nexus» per la griglia, «nexus-note» per la tabella delle note del giorno
+    function fotoNexus(fonte) {
+      return chiama('/auto/schermata', undefined, '&fonte=' + fonte).then(function (r) {
         if (!r.ok || !/^image\//.test(r.headers.get('Content-Type') || '')) {
           return r.json().then(function (j) { throw new Error((j && j.errore) || 'La foto di NEXUS non è arrivata (' + r.status + ').'); },
             function () { throw new Error('La foto di NEXUS non è arrivata (' + r.status + ').'); });
@@ -2319,8 +2728,12 @@ kbd {
       var chiaviPbi = chiaviAuto.filter(function (k) { return fonteAuto(state.auto[k]).tipo === 'pbi'; });
       var chiaviNexus = chiaviAuto.filter(function (k) { return fonteAuto(state.auto[k]).tipo === 'nexus'; });
       // NEXUS parte subito, mentre si legge Power BI: sono le due attese più lunghe
-      var attesaNexus = chiaviNexus.length ? fotoNexus() : Promise.resolve(null);
+      var chiaviNote = chiaviAuto.filter(function (k) { return fonteAuto(state.auto[k]).tipo === 'nexus_note'; });
+      var attesaNexus = chiaviNexus.length ? fotoNexus('nexus') : Promise.resolve(null);
       attesaNexus.catch(function () {});   // l'errore viene raccolto più sotto, quando serve la foto
+      // le note si fotografano dopo la griglia, non insieme: il browser di Cloudflare accetta poche richieste ravvicinate
+      var attesaNote = chiaviNote.length ? attesaNexus.then(function () {}, function () {}).then(function () { return fotoNexus('nexus-note'); }) : Promise.resolve(null);
+      attesaNote.catch(function () {});
 
       // se richiesto, la mail parte solo se il modello è stato aggiornato oggi
       var controllo = (cfg.soloAggiornatoOggi && chiaviPbi.length) ? pbiAggiornamento() : Promise.resolve(null);
@@ -2357,9 +2770,18 @@ kbd {
             chiaviNexus.forEach(function (k) { imgsAll.eff[k] = { src: foto.src, ratio: foto.ratio }; });
             riepilogo.pagine.push('NEXUS');
           }
-          var rimaste = chiaviAuto.filter(function (k) { return !escluse[state.auto[k]]; });
+          return attesaNote;
+        }).then(function (note) {
+          // note del giorno: se non ce ne sono (riquadro senza colore, solo la scritta grigia) la sezione resta fuori
+          var senzaNote = chiaviNote.length > 0 && (!note || note.colore < NEXUS_COLORE_MIN);
+          if (chiaviNote.length && !senzaNote) {
+            chiaviNote.forEach(function (k) { imgsAll.eff[k] = { src: note.src, ratio: note.ratio }; });
+            riepilogo.pagine.push('NEXUS note');
+          }
+          if (senzaNote) riepilogo.pagine.push('NEXUS note esclusa: nessuna nota');
+          var rimaste = chiaviAuto.filter(function (k) { return !escluse[state.auto[k]] && !(senzaNote && fonteAuto(state.auto[k]).tipo === 'nexus_note'); });
           if (!rimaste.length) throw new Error('Per il ' + giorno.testo + ' nessuna delle pagine assegnate ha dati: mail non inviata.');
-          riepilogo.escluse = Object.keys(escluse).map(function (id) { return PBI_PAGINE[id].nome; });
+          riepilogo.escluse = Object.keys(escluse).map(function (id) { return PBI_PAGINE[id].nome; }).concat(senzaNote ? ['Note di NEXUS'] : []);
           return rimaste;
         });
       }, function (eNexus) {
