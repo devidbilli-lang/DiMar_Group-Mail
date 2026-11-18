@@ -390,8 +390,13 @@ kbd {
         <legend>Invio automatico</legend>
         <div class="stack" id="auto-corpo">
           <span class="big-label">RIQUADRI CHE SI COMPILANO DA SOLI</span>
-          <p class="hint">Per ogni riquadro scegli la pagina di Power BI che lo riempie quando la mail parte dal Worker. I riquadri lasciati su «Nessuna» restano fuori dalla mail automatica.</p>
+          <p class="hint">Per ogni riquadro scegli cosa lo riempie quando la mail parte dal Worker: una pagina di Power BI oppure la griglia di NEXUS. I riquadri lasciati su «Nessuna» restano fuori dalla mail automatica.</p>
           <div class="stack" id="auto-lista"></div>
+          <div class="field" id="auto-nexus-campo">
+            <label for="auto-nexus">Indirizzo di NEXUS</label>
+            <input type="url" id="auto-nexus" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="https://…">
+            <p class="hint">L'indirizzo con cui apri NEXUS nel browser. Serve solo se un riquadro usa la griglia di NEXUS: il Worker la fotografa com'è in quel momento.</p>
+          </div>
           <div class="field">
             <label for="auto-oggetto">Oggetto della mail</label>
             <input type="text" id="auto-oggetto">
@@ -514,7 +519,8 @@ kbd {
       chiusura: 'Un saluto',
       destinatari: '',
       oggetto: 'REPORT EFFICIENZE {data}',
-      auto: {}   // invio automatico: chiave del riquadro → pagina di Power BI che lo riempie
+      nexusUrl: '',   // indirizzo di NEXUS, per il riquadro con la griglia di Entra in produzione
+      auto: {}   // invio automatico: chiave del riquadro → fonte che lo riempie (pagina di Power BI o griglia di NEXUS)
     },
     chanel: {
       apertura: 'Buon pomeriggio,\ndi seguito l\'aggiornamento delle spedizioni Chanel alla data odierna **({data}).**',
@@ -2012,6 +2018,15 @@ kbd {
 
   // ───────── Invio automatico ─────────
   // Le scelte (riquadro → pagina, oggetto) stanno nel modello REPORT EFFICIENZE e viaggiano verso il Worker con «Copia impostazioni».
+  function fonteAuto(id) {
+    if (PBI_PAGINE[id]) return { nome: PBI_PAGINE[id].nome, tipo: 'pbi' };
+    if (id === 'nexus') return { nome: 'NEXUS · griglia Entra in produzione', tipo: 'nexus' };
+    return null;
+  }
+  function nexusValido(u) {
+    u = String(u || '').trim();
+    return /^https:\/\/[^\s/?#]+(\/[^\s?#]*)?$/i.test(u) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/[^\s?#]*)?$/i.test(u);
+  }
   function autoVoci() {
     var v = [];
     store.modelli.eff.sezioni.forEach(function (sz_, i) {
@@ -2032,15 +2047,17 @@ kbd {
     if (!m.auto || typeof m.auto !== 'object') m.auto = {};
     var voci = autoVoci(), valide = {};
     voci.forEach(function (v) { valide[v[0]] = 1; });
-    Object.keys(m.auto).forEach(function (k) { if (!valide[k] || !PBI_PAGINE[m.auto[k]]) delete m.auto[k]; });
+    Object.keys(m.auto).forEach(function (k) { if (!valide[k] || !fonteAuto(m.auto[k])) delete m.auto[k]; });
     $('#auto-lista').innerHTML = voci.map(function (v, n) {
       return '<div class="auto-riga"><label class="flabel" for="auto-s-' + n + '">' + esc(v[1]) + '</label>' +
         '<select id="auto-s-' + n + '" data-chiave="' + esc(v[0]) + '"><option value="">Nessuna</option>' +
-        Object.keys(PBI_PAGINE).map(function (id) { return '<option value="' + id + '"' + (m.auto[v[0]] === id ? ' selected' : '') + '>' + esc(PBI_PAGINE[id].nome) + '</option>'; }).join('') +
+        Object.keys(PBI_PAGINE).concat(['nexus']).map(function (id) { return '<option value="' + id + '"' + (m.auto[v[0]] === id ? ' selected' : '') + '>' + esc(fonteAuto(id).nome) + '</option>'; }).join('') +
         '</select></div>';
     }).join('');
     var og = $('#auto-oggetto');
     if (document.activeElement !== og) og.value = m.oggetto === undefined ? DEFS.eff.oggetto : m.oggetto;
+    var nx = $('#auto-nexus');
+    if (document.activeElement !== nx) nx.value = m.nexusUrl || '';
   }
   $('#auto-lista').addEventListener('change', function (e) {
     var sel = e.target.closest('select[data-chiave]');
@@ -2050,9 +2067,12 @@ kbd {
     save();
   });
   $('#auto-oggetto').addEventListener('input', function (e) { store.modelli.eff.oggetto = e.target.value; save(); });
+  $('#auto-nexus').addEventListener('input', function (e) { store.modelli.eff.nexusUrl = e.target.value.trim(); save(); });
   $('#auto-copia').addEventListener('click', function () {
     var m = store.modelli.eff, quanti = Object.keys(m.auto || {}).length;
     if (!quanti) { toast('Scegli prima almeno una pagina per un riquadro.'); return; }
+    var usaNexus = Object.keys(m.auto).some(function (k) { return m.auto[k] === 'nexus'; });
+    if (usaNexus && !nexusValido(m.nexusUrl)) { toast('Scrivi l\'indirizzo di NEXUS (comincia con https://).'); $('#auto-nexus').focus(); return; }
     var prima = state; state = m;
     var dest = indirizzi();
     state = prima;
@@ -2079,7 +2099,32 @@ kbd {
   // Il giro completo senza nessuno davanti: impostazioni dal Worker → lettura da Power BI → disegno → mail → consegna al Worker.
   function autoEsegui() {
     var cfg = null, riepilogo = { pagine: [] };
-    function chiama(percorso, opz) { return fetch(AUTO.w + percorso + '?t=' + encodeURIComponent(AUTO.t), opz); }
+    function chiama(percorso, opz, extra) { return fetch(AUTO.w + percorso + '?t=' + encodeURIComponent(AUTO.t) + (extra || ''), opz); }
+    // La foto della griglia di NEXUS, fatta dal Worker con un secondo browser: { src, ratio }
+    function fotoNexus() {
+      return chiama('/auto/schermata', undefined, '&fonte=nexus').then(function (r) {
+        if (!r.ok || !/^image\//.test(r.headers.get('Content-Type') || '')) {
+          return r.json().then(function (j) { throw new Error((j && j.errore) || 'La foto di NEXUS non è arrivata (' + r.status + ').'); },
+            function () { throw new Error('La foto di NEXUS non è arrivata (' + r.status + ').'); });
+        }
+        return r.blob();
+      }).then(function (blob) {
+        return new Promise(function (ok, ko) {
+          var fr = new FileReader();
+          fr.onload = function () {
+            var im = new Image();
+            im.onload = function () {
+              if (!im.naturalWidth || !im.naturalHeight) { ko(new Error('La foto di NEXUS è vuota.')); return; }
+              ok({ src: String(fr.result), ratio: im.naturalHeight / im.naturalWidth });
+            };
+            im.onerror = function () { ko(new Error('La foto di NEXUS non è un\'immagine valida.')); };
+            im.src = String(fr.result);
+          };
+          fr.onerror = function () { ko(new Error('Non riesco a leggere la foto di NEXUS.')); };
+          fr.readAsDataURL(blob);
+        });
+      });
+    }
     // Segnale di fine per il browser senza schermo. Il testo del segnale è composto qui, così non compare nel sorgente della pagina.
     function fine(esito, testo) {
       try { imgsAll.eff = {}; imgs = imgsAll[attivo]; $('#mail').innerHTML = ''; } catch (e) {}
@@ -2142,18 +2187,23 @@ kbd {
       pbiTok = { access: String(cfg.token || ''), refresh: '', scade: Date.now() + 40 * 60000, utente: '' };
       if (!pbiTok.access) throw new Error('Il Worker non ha consegnato l\'accesso a Power BI.');
       var giorno = { a: Number(g[1]), m: Number(g[2]), g: Number(g[3]), testo: g[3] + '/' + g[2] + '/' + g[1] };
-      var chiaviAuto = chiavi(state).filter(function (k) { return !!PBI_PAGINE[(state.auto || {})[k]]; });
-      if (!chiaviAuto.length) throw new Error('Nessun riquadro ha una pagina di Power BI assegnata: sceglile in DiMail e ricopia le impostazioni.');
+      var chiaviAuto = chiavi(state).filter(function (k) { return !!fonteAuto((state.auto || {})[k]); });
+      if (!chiaviAuto.length) throw new Error('Nessun riquadro ha una fonte assegnata: sceglile in DiMail e ricopia le impostazioni.');
+      var chiaviPbi = chiaviAuto.filter(function (k) { return fonteAuto(state.auto[k]).tipo === 'pbi'; });
+      var chiaviNexus = chiaviAuto.filter(function (k) { return fonteAuto(state.auto[k]).tipo === 'nexus'; });
+      // NEXUS parte subito, mentre si legge Power BI: sono le due attese più lunghe
+      var attesaNexus = chiaviNexus.length ? fotoNexus() : Promise.resolve(null);
+      attesaNexus.catch(function () {});   // l'errore viene raccolto più sotto, quando serve la foto
 
       // se richiesto, la mail parte solo se il modello è stato aggiornato oggi
-      var controllo = cfg.soloAggiornatoOggi ? pbiAggiornamento() : Promise.resolve(null);
+      var controllo = (cfg.soloAggiornatoOggi && chiaviPbi.length) ? pbiAggiornamento() : Promise.resolve(null);
       return controllo.then(function (agg) {
         if (cfg.soloAggiornatoOggi && agg && giornoRoma(agg) && giornoRoma(agg) !== cfg.giorno) {
           throw new Error('Il modello di Power BI non è stato aggiornato oggi (ultimo aggiornamento ' + pbiDataOra(agg).join(' ') + '): mail non inviata.');
         }
         // una lettura per pagina, anche se la stessa pagina riempie più riquadri
         var letti = {}, coda = Promise.resolve();
-        chiaviAuto.forEach(function (k) {
+        chiaviPbi.forEach(function (k) {
           var id = state.auto[k];
           if (letti[id]) return;
           letti[id] = true;
@@ -2164,7 +2214,13 @@ kbd {
           });
         });
         return coda.then(function () {
-          chiaviAuto.forEach(function (k) { imgsAll.eff[k] = PBI_PAGINE[state.auto[k]].immagine(letti[state.auto[k]]); });
+          chiaviPbi.forEach(function (k) { imgsAll.eff[k] = PBI_PAGINE[state.auto[k]].immagine(letti[state.auto[k]]); });
+          return attesaNexus;
+        }).then(function (foto) {
+          if (chiaviNexus.length) {
+            chiaviNexus.forEach(function (k) { imgsAll.eff[k] = foto; });
+            riepilogo.pagine.push('NEXUS');
+          }
           return chiaviAuto;
         });
       });
