@@ -2158,7 +2158,7 @@ kbd {
   };
   var PBI_PREP_LV = {
     giorni: 7,
-    titolo: 'Preparazione DG_LV', titoloColore: '#FF701B',
+    titolo: 'Preparazione DG_LV', titoloColore: '#F2955A',
     linea: 'Preparazione DG',
     media: "'capacityLedgerEntryAPI'[Efficienza_Prep_LV]", oggi: "'capacityLedgerEntryAPI'[Efficienza Oggi_PRE_LV]",
     opGiorno: "'Presenze CF Worker'[Operatori_PreLV]", opMedia: "'Presenze CF Worker'[Media_Operatori_PreLV]", opDec: 1, opVoce: 'Operatori Totali (FTE)',
@@ -2166,7 +2166,8 @@ kbd {
     reparto: 'prep', brandAttivita: 'LV',
     brandRighe: 'LV',
     sfondo: 'preplv',
-    colore: '#FF701B', coloreTesto: '#FF701B', coloreLinea: '#E66C37', chiaro: '#FFD6BE'
+    // arancio pieno per cursore e riga delle tabelle; arancio morbido (quello di «Efficienza LV») per indicatore, scritte, linea e cella Brand
+    colore: '#FF701B', coloreArco: '#F2955A', coloreTesto: '#F2955A', coloreLinea: '#F2955A', chiaro: '#FFD6BE'
   };
   var PBI_TING = {
     giorni: 7,
@@ -2287,7 +2288,7 @@ kbd {
     var P = d.R, SW = 1881, SH = 1056, k = (BOX_W * 2) / SW;
     var F = PBI_F;
     var SFONDO = '#0B1220', TESSERA = '#131C2E', BORDO = '#1D2A42', BIANCO = '#FFFFFF', TRACCIA = '#F3F2F1';
-    var CIANO = P.colore, CIANO_T = P.coloreTesto, CIANO_CHIARO = P.chiaro, LINEA = P.coloreLinea || P.coloreTesto, ORO = '#FFC654', BARRA = '#65573B', VIOLA = P.coloreTarget || '#C750FF', LILLA = '#BB77FF', LILLA_CHIARO = '#F0E1FF', VERDE = P.coloreQta || '#27BB73', GRIGLIA = '#4A4D53';
+    var CIANO = P.colore, ARCO = P.coloreArco || P.colore, CIANO_T = P.coloreTesto, CIANO_CHIARO = P.chiaro, LINEA = P.coloreLinea || P.coloreTesto, ORO = '#FFC654', BARRA = '#65573B', VIOLA = P.coloreTarget || '#C750FF', LILLA = '#BB77FF', LILLA_CHIARO = '#F0E1FF', VERDE = P.coloreQta || '#27BB73', GRIGLIA = '#4A4D53';
     var c = document.createElement('canvas');
     c.width = BOX_W * 2; c.height = Math.round(SH * k);
     var x = c.getContext('2d');
@@ -2372,7 +2373,7 @@ kbd {
     tabella(610, 444, 673, 692, P.brandAttivita ? [
       ['Data', 17, 149, BIANCO, '#000000', function (r) { return pbiDataBreve(r.data); }],
       ['Tipologia', 149, 291, BIANCO, '#000000', function (r) { return r.tip; }],
-      ['Brand', 291, 372, BIANCO, '#000000', function (r) { return r.brand; }, CIANO],
+      ['Brand', 291, 372, BIANCO, '#000000', function (r) { return r.brand; }, ARCO],
       ['Tempo\n(min)', 372, 459, LILLA, LILLA, function (r) { return pbiNumero(r.tempo, 0); }]
     ] : [
       ['Data', 17, 143, BIANCO, '#000000', function (r) { return pbiDataBreve(r.data); }],
@@ -2390,7 +2391,7 @@ kbd {
       x.strokeStyle = TRACCIA; x.beginPath(); x.arc(cx, cy, R, Math.PI, 2 * Math.PI); x.stroke();
       if (g[2] !== null) {
         var q = Math.max(0, Math.min(1, g[2]));
-        if (q > 0) { x.strokeStyle = CIANO; x.beginPath(); x.arc(cx, cy, R, Math.PI, Math.PI + Math.PI * q); x.stroke(); }
+        if (q > 0) { x.strokeStyle = ARCO; x.beginPath(); x.arc(cx, cy, R, Math.PI, Math.PI + Math.PI * q); x.stroke(); }
       }
       var tv = g[2] === null ? '(Vuoto)' : perc(g[2]);
       testo(tv, cx, cy - 13, (tv.length > 4 ? 54 : tv.length > 3 ? 62 : 74) + 'px', CIANO_T);
