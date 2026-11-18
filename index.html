@@ -2748,7 +2748,8 @@ kbd {
       } catch (e) { return 1; }   // se non si riesce a guardare la foto, non si blocca la mail per questo
     }
     var NEXUS_COLORE_MIN = 0.001;   // sotto l'uno per mille la griglia è tutta grigia: una sola linea attiva ne porta molto di più
-    // Toglie il bianco attorno al contenuto. Serve per le note quando il Worker ha dovuto fotografare la finestra intera
+    // Toglie il fondo vuoto attorno al contenuto (bianco col tema chiaro di NEXUS, blu notte col tema scuro: il colore si legge
+    // dall'angolo in basso a destra della foto). Serve per le note quando il Worker ha dovuto fotografare la finestra intera
     // invece della sola tabella; su una foto già giusta non cambia nulla. Restituisce una tela, oppure null se non c'è da tagliare.
     function rifila(im) {
       try {
@@ -2757,9 +2758,10 @@ kbd {
         var cx = cv.getContext('2d');
         cx.drawImage(im, 0, 0);
         var px = cx.getImageData(0, 0, w, h).data, x0 = w, y0 = h, x1 = -1, y1 = -1;
+        var ang = (h * w - 1) * 4, fr = px[ang], fg = px[ang + 1], fb = px[ang + 2], T = 6;
         for (var yy = 0; yy < h; yy++) {
           for (var xx = 0, i = yy * w * 4; xx < w; xx++, i += 4) {
-            if (px[i + 3] > 8 && (px[i] < 250 || px[i + 1] < 250 || px[i + 2] < 250)) {
+            if (px[i + 3] > 8 && (Math.abs(px[i] - fr) > T || Math.abs(px[i + 1] - fg) > T || Math.abs(px[i + 2] - fb) > T)) {
               if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (yy < y0) y0 = yy; if (yy > y1) y1 = yy;
             }
           }
@@ -2768,7 +2770,7 @@ kbd {
         var t = document.createElement('canvas');
         t.width = x1 - x0 + 1; t.height = y1 - y0 + 1;
         var tx = t.getContext('2d');
-        tx.fillStyle = '#ffffff'; tx.fillRect(0, 0, t.width, t.height);
+        tx.fillStyle = 'rgb(' + fr + ',' + fg + ',' + fb + ')'; tx.fillRect(0, 0, t.width, t.height);
         tx.drawImage(cv, x0, y0, t.width, t.height, 0, 0, t.width, t.height);
         return t;
       } catch (e) { return null; }
