@@ -380,7 +380,7 @@ kbd {
             </select>
           </div>
           <div class="pbi-row" id="pbi-sfondo-riga">
-            <span class="flabel">Sfondo grafico LV</span>
+            <span class="flabel">Immagine nel grafico</span>
             <input type="file" id="pbi-sfondo-file" accept="image/png,image/jpeg,image/webp" hidden>
             <button type="button" class="btn" id="pbi-sfondo-carica">Carica immagine</button>
             <button type="button" class="btn" id="pbi-sfondo-togli" hidden>Togli</button>
@@ -397,7 +397,7 @@ kbd {
             <select id="pbi-box"></select>
             <button type="button" class="btn primary" id="pbi-compila" disabled>Compila da Power BI</button>
           </div>
-          <p class="hint">«Compila» ridisegna nel riquadro scelto la pagina di Power BI scelta, con i valori del giorno. Per «Efficienza LV», «Efficienza Chanel», «Taglio DG», le due «Preparazione DG», «Tingitura» e «RMA» il periodo sono gli otto giorni che finiscono nel giorno scelto. «Sfondo grafico LV» è l'immagine che nel report sta dietro al grafico «Trend Efficienza»: carica una volta lo stesso file usato in Power BI, poi ricompila per vederla.</p>
+          <p class="hint">«Compila» ridisegna nel riquadro scelto la pagina di Power BI scelta, con i valori del giorno. Per «Efficienza LV», «Efficienza Chanel», «Taglio DG», le due «Preparazione DG», «Tingitura» e «RMA» il periodo sono gli otto giorni che finiscono nel giorno scelto. «Immagine nel grafico» è l'immagine che nel report sta dietro al grafico: vale per la pagina scelta qui sopra, una per pagina. Scegli la pagina, carica lo stesso file usato in Power BI, poi ricompila per vederla. Per l'invio automatico, dopo aver caricato o cambiato un'immagine ricopia le impostazioni nella pagina del Worker.</p>
           <div class="pbi-ris" id="pbi-ris" role="status" aria-live="polite" hidden></div>
           <p class="hint">L'accesso è il tuo account Microsoft: nella pagina non viene salvata nessuna password. Si apre in una finestrella, quindi gli screenshot già incollati restano al loro posto.</p>
           <details>
@@ -1324,33 +1324,68 @@ kbd {
 
   function pbiSalva() { if (AUTO) return; try { localStorage.setItem(PBI_KEY, JSON.stringify(pbi)); } catch (e) {} }
 
-  // Immagine di sfondo del grafico «Trend Efficienza» (pagina Efficienza LV): la carica l'utente, DiMail la mette dietro alle linee.
-  var PBI_SFONDO_KEY = 'dimail-pbi-sfondo-lv', PBI_SFONDO_MAX = 1400, PBI_SFONDO_LIMITE = 1500000;
-  var pbiSfondo = { dati: '', opacita: 100, misura: 100 }, pbiSfondoImg = null, pbiSfondoAttesa = Promise.resolve(null);
+  // Immagine dentro al grafico, una per ogni pagina di Power BI che ha un grafico: la carica l'utente dopo aver scelto la pagina,
+  // DiMail la mette dietro a linee e colonne. Si ricordano nel browser e viaggiano nelle impostazioni per il Worker.
+  var PBI_SFONDI_KEY = 'dimail-pbi-sfondi-v1', PBI_SFONDO_KEY_VECCHIA = 'dimail-pbi-sfondo-lv';
+  var PBI_SFONDO_MAX = 900, PBI_SFONDO_PESO = 350000, PBI_SFONDO_LIMITE = 1500000;   // larghezza massima, peso cercato al caricamento, peso oltre il quale si scarta
+  var pbiSfondi = {}, pbiSfondiImg = {}, pbiSfondiAttese = {};
   function pbiSfondoValido(o) {
     return !!o && typeof o.dati === 'string' && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/=]+$/.test(o.dati) && o.dati.length <= PBI_SFONDO_LIMITE;
   }
   function pbiSfondoNumero(v, min, max) { v = Math.round(Number(v)); return isFinite(v) ? Math.max(min, Math.min(max, v)) : 100; }
-  // Prende le impostazioni (dalla memoria del browser o dal Worker) e prepara l'immagine; la promessa finisce quando è pronta.
-  function pbiSfondoImposta(o) {
-    if (!pbiSfondoValido(o)) { pbiSfondo = { dati: '', opacita: 100, misura: 100 }; pbiSfondoImg = null; pbiSfondoAttesa = Promise.resolve(null); return pbiSfondoAttesa; }
-    pbiSfondo = { dati: o.dati, opacita: pbiSfondoNumero(o.opacita, 10, 100), misura: pbiSfondoNumero(o.misura, 40, 130) };
-    pbiSfondoAttesa = new Promise(function (fatto) {
+  function pbiSfondoDi(id) { return pbiSfondi[id] || { dati: '', opacita: 100, misura: 100 }; }
+  // Imposta (o toglie, con null) l'immagine di una pagina e la prepara; la promessa finisce quando è pronta.
+  function pbiSfondoImposta(id, o) {
+    if (!pbiSfondoValido(o)) { delete pbiSfondi[id]; delete pbiSfondiImg[id]; delete pbiSfondiAttese[id]; return Promise.resolve(null); }
+    pbiSfondi[id] = { dati: o.dati, opacita: pbiSfondoNumero(o.opacita, 10, 100), misura: pbiSfondoNumero(o.misura, 40, 130) };
+    pbiSfondiAttese[id] = new Promise(function (fatto) {
       var im = new Image();
-      im.onload = function () { pbiSfondoImg = im.naturalWidth && im.naturalHeight ? im : null; fatto(pbiSfondoImg); };
-      im.onerror = function () { pbiSfondoImg = null; fatto(null); };
+      im.onload = function () { if (im.naturalWidth && im.naturalHeight) pbiSfondiImg[id] = im; else delete pbiSfondiImg[id]; fatto(pbiSfondiImg[id] || null); };
+      im.onerror = function () { delete pbiSfondiImg[id]; fatto(null); };
       im.src = o.dati;
     });
-    return pbiSfondoAttesa;
+    return pbiSfondiAttese[id];
+  }
+  // Sostituisce tutte le immagini con quelle di una mappa { pagina: immagine } (dalla memoria del browser o dal Worker)
+  function pbiSfondiImposta(mappa) {
+    pbiSfondi = {}; pbiSfondiImg = {}; pbiSfondiAttese = {};
+    if (mappa && typeof mappa === 'object') Object.keys(mappa).forEach(function (id) { if (/^[a-z]{2,12}$/.test(id)) pbiSfondoImposta(id, mappa[id]); });
+  }
+  // Si risolve quando tutte le immagini impostate sono pronte per essere disegnate; non fallisce mai.
+  function pbiSfondiPronti() {
+    return Promise.all(Object.keys(pbiSfondiAttese).map(function (id) { return pbiSfondiAttese[id]; })).then(function () { return null; }, function () { return null; });
   }
   function pbiSfondoSalva() {
     if (AUTO) return true;
     try {
-      if (pbiSfondo.dati) localStorage.setItem(PBI_SFONDO_KEY, JSON.stringify(pbiSfondo)); else localStorage.removeItem(PBI_SFONDO_KEY);
+      if (Object.keys(pbiSfondi).length) localStorage.setItem(PBI_SFONDI_KEY, JSON.stringify(pbiSfondi)); else localStorage.removeItem(PBI_SFONDI_KEY);
+      localStorage.removeItem(PBI_SFONDO_KEY_VECCHIA);
       return true;
     } catch (e) { return false; }
   }
-  if (!AUTO) { try { pbiSfondoImposta(JSON.parse(localStorage.getItem(PBI_SFONDO_KEY) || 'null')); } catch (e) {} }
+  if (!AUTO) {
+    try {
+      var sfondiLetti = JSON.parse(localStorage.getItem(PBI_SFONDI_KEY) || 'null');
+      if (!sfondiLetti) {   // prima c'era una sola immagine, quella della pagina Efficienza LV
+        var sfondoVecchio = JSON.parse(localStorage.getItem(PBI_SFONDO_KEY_VECCHIA) || 'null');
+        if (sfondoVecchio) sfondiLetti = { lv: sfondoVecchio };
+      }
+      pbiSfondiImposta(sfondiLetti);
+    } catch (e) {}
+  }
+  // Disegna l'immagine della pagina dentro al rettangolo dato (centrata, in proporzione), ritagliata sul percorso di «ritaglio».
+  function pbiSfondoDisegna(x, id, AX, AY, AW, AH, ritaglio) {
+    var im = id && pbiSfondiImg[id], o = id && pbiSfondi[id];
+    if (!im || !o) return false;
+    var fs = Math.min(AW / im.naturalWidth, AH / im.naturalHeight) * o.misura / 100;
+    var iw = im.naturalWidth * fs, ih = im.naturalHeight * fs;
+    x.save();
+    ritaglio(); x.clip();
+    x.globalAlpha = o.opacita / 100;
+    try { x.drawImage(im, AX + (AW - iw) / 2, AY + (AH - ih) / 2, iw, ih); } catch (e) {}
+    x.restore();
+    return true;
+  }
   function pbiSalvaTok() {
     if (AUTO) return;
     try { if (pbiTok) sessionStorage.setItem(PBI_TOK, JSON.stringify(pbiTok)); else sessionStorage.removeItem(PBI_TOK); } catch (e) {}
@@ -1819,7 +1854,7 @@ kbd {
     media: 'Efficienza_LV', oggi: 'Efficienza Oggi_LV',
     oggiLinee: 'Presenze CF Worker',   // tabella su cui il visual «Efficienza Oggi» esclude le linee
     colore: '#F2955A', fondo: '#443738', cartellino: '#825744',
-    sfondo: true   // dietro al grafico può stare l'immagine caricata in «Sfondo grafico LV»
+    sfondo: 'lv'   // chiave dell'immagine che può stare dietro al grafico (vedi pbiSfondi)
   };
   var PBI_CC = {
     giorni: 7,
@@ -1829,7 +1864,7 @@ kbd {
     media: 'Efficienza_CC', oggi: 'Efficienza Oggi_CC',
     oggiLinee: 'Qualità CF Worker',
     colore: '#B6DB6D', fondo: '#38463B', cartellino: '#657B4E',
-    sfondo: false
+    sfondo: 'cc'
   };
   function pbiDataDax(q) { return 'DATE(' + q.getFullYear() + ', ' + (q.getMonth() + 1) + ', ' + q.getDate() + ')'; }
   function pbiDataBreve(q) { function due(n) { return ('0' + n).slice(-2); } return due(q.getDate()) + '/' + due(q.getMonth() + 1) + '/' + q.getFullYear(); }
@@ -2027,17 +2062,8 @@ kbd {
       testo(v[0], lx + 18, 668, '22px', BIANCO, 'left');
       lx += larghezze[i] + 12;
     });
-    // immagine di sfondo caricata dall'utente: dietro alle linee, centrata nella fascia del grafico
-    if (P.sfondo && pbiSfondoImg) {
-      var AX = 236, AY = 758, AW = 1434, AH = 160, fm = pbiSfondo.misura / 100;
-      var fs = Math.min(AW / pbiSfondoImg.naturalWidth, AH / pbiSfondoImg.naturalHeight) * fm;
-      var iw = pbiSfondoImg.naturalWidth * fs, ih = pbiSfondoImg.naturalHeight * fs;
-      x.save();
-      rr(8, 594, 1862, 459, 9); x.clip();
-      x.globalAlpha = pbiSfondo.opacita / 100;
-      try { x.drawImage(pbiSfondoImg, AX + (AW - iw) / 2, AY + (AH - ih) / 2, iw, ih); } catch (e) {}
-      x.restore();
-    }
+    // immagine caricata dall'utente per questa pagina: dietro alle linee, centrata nella fascia del grafico
+    pbiSfondoDisegna(x, P.sfondo, 236, 758, 1434, 160, function () { rr(8, 594, 1862, 459, 9); });
     var punti = d.trend, np = punti.length;
     if (np) {
       var PX0 = 28, PX1 = 1880, YT = 695, YB = 985;
@@ -2115,6 +2141,7 @@ kbd {
     soloCon: null,          // misura che deve essere > 0 perché una data conti nel cursore del periodo
     reparto: 'taglio', brandAttivita: null,   // filtri della tabella delle attività (con brandAttivita compare la colonna Brand)
     brandRighe: null,       // filtro Brand della tabella Data · Codice · Qtà · TC
+    sfondo: 'taglio',
     colore: '#5EFFFF', coloreTesto: '#38FCFF', chiaro: '#E1FDFF'
   };
   var PBI_PREP_CC = {
@@ -2126,6 +2153,7 @@ kbd {
     soloCon: "'Presenze CF Worker'[Operatori_PreCC]",
     reparto: 'prep', brandAttivita: 'Chanel',
     brandRighe: 'CC',
+    sfondo: 'prepcc',
     colore: '#BDFF23', coloreTesto: '#BDFF23', chiaro: '#E9FFB5'
   };
   var PBI_PREP_LV = {
@@ -2137,6 +2165,7 @@ kbd {
     soloCon: null,
     reparto: 'prep', brandAttivita: 'LV',
     brandRighe: 'LV',
+    sfondo: 'preplv',
     colore: '#FF701B', coloreTesto: '#FF701B', coloreLinea: '#E66C37', chiaro: '#FFD6BE'
   };
   var PBI_TING = {
@@ -2148,6 +2177,7 @@ kbd {
     soloCon: null,
     reparto: 'tintura', brandAttivita: null,
     brandRighe: null,
+    sfondo: 'ting',
     colore: '#3FB2FF', coloreTesto: '#3FB2FF', chiaro: '#BBE4FF',
     coloreTarget: '#BDFF23', coloreQta: '#3FB2FF'   // in questa pagina il Target è verde e la colonna Qtà è azzurra
   };
@@ -2160,6 +2190,7 @@ kbd {
     soloCon: null,
     reparto: 'rma', brandAttivita: null,
     brandRighe: null,
+    sfondo: 'rma',
     colore: '#FB3CED', coloreTesto: '#FB3CED', chiaro: '#FDBFF9',
     coloreTarget: '#BFFF48', coloreQta: '#FB3CED'
   };
@@ -2385,6 +2416,9 @@ kbd {
       testo(v[0], lx + 20, 381, '23px', BIANCO, 'left');
       lx += larghezze[i] + 12;
     });
+    // immagine caricata dall'utente per questa pagina: al centro dell'area del grafico, sotto a griglia, colonne e linee.
+    // Con l'immagine le colonne si disegnano trasparenti (stesso colore di prima sul fondo scuro), così si vede attraverso.
+    var conSfondo = pbiSfondoDisegna(x, P.sfondo, 612, 470, 1117, 460, function () { rr(500, 277, 1374, 777, 9); });
     var punti = d.trend, np = punti.length;
     if (np) {
       var GX0 = 548, GX1 = 1795, BX0 = 612, BX1 = 1729, YT = 430, YB = 967;
@@ -2411,7 +2445,7 @@ kbd {
       punti.forEach(function (p, i) {
         if (p.op === null) return;
         var y0 = ySx(p.op), x0 = cxp(i) - lb / 2;
-        x.fillStyle = BARRA; x.fillRect(x0, y0, lb, YB - y0);
+        x.fillStyle = conSfondo ? 'rgba(255,198,84,0.347)' : BARRA; x.fillRect(x0, y0, lb, YB - y0);
         x.lineWidth = 2; x.strokeStyle = ORO; x.strokeRect(x0, y0, lb, YB - y0);
         testo(pbiNumero(p.op, P.opDec), cxp(i), y0 - 14, '22px', ORO);
       });
@@ -2478,13 +2512,13 @@ kbd {
   // senzaGiorno: nell'invio automatico una pagina senza dati per il giorno della mail viene lasciata fuori
   var PBI_PAGINE = {
     pannello: { nome: 'Pannello di Controllo', leggi: pbiLeggi, elenco: pbiElenco, vuoto: pbiVuoto, senzaGiorno: pbiVuoto, immagine: pbiImmagine },
-    lv: { nome: 'Efficienza LV', leggi: function (g) { return pbiLeggiBrand(PBI_LV, g); }, elenco: pbiElencoLV, vuoto: pbiVuotoLV, senzaGiorno: pbiSenzaGiornoLV, immagine: pbiImmagineLV },
-    cc: { nome: 'Efficienza Chanel', leggi: function (g) { return pbiLeggiBrand(PBI_CC, g); }, elenco: pbiElencoLV, vuoto: pbiVuotoLV, senzaGiorno: pbiSenzaGiornoLV, immagine: pbiImmagineLV },
-    taglio: { nome: 'Taglio DG', leggi: function (g) { return pbiLeggiReparto(PBI_TG, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto },
-    prepcc: { nome: 'Preparazione DG CC', leggi: function (g) { return pbiLeggiReparto(PBI_PREP_CC, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto },
-    preplv: { nome: 'Preparazione DG LV', leggi: function (g) { return pbiLeggiReparto(PBI_PREP_LV, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto },
-    ting: { nome: 'Tingitura', leggi: function (g) { return pbiLeggiReparto(PBI_TING, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto },
-    rma: { nome: 'RMA', leggi: function (g) { return pbiLeggiReparto(PBI_RMA, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto }
+    lv: { nome: 'Efficienza LV', grafico: true, leggi: function (g) { return pbiLeggiBrand(PBI_LV, g); }, elenco: pbiElencoLV, vuoto: pbiVuotoLV, senzaGiorno: pbiSenzaGiornoLV, immagine: pbiImmagineLV },
+    cc: { nome: 'Efficienza Chanel', grafico: true, leggi: function (g) { return pbiLeggiBrand(PBI_CC, g); }, elenco: pbiElencoLV, vuoto: pbiVuotoLV, senzaGiorno: pbiSenzaGiornoLV, immagine: pbiImmagineLV },
+    taglio: { nome: 'Taglio DG', grafico: true, leggi: function (g) { return pbiLeggiReparto(PBI_TG, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto },
+    prepcc: { nome: 'Preparazione DG CC', grafico: true, leggi: function (g) { return pbiLeggiReparto(PBI_PREP_CC, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto },
+    preplv: { nome: 'Preparazione DG LV', grafico: true, leggi: function (g) { return pbiLeggiReparto(PBI_PREP_LV, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto },
+    ting: { nome: 'Tingitura', grafico: true, leggi: function (g) { return pbiLeggiReparto(PBI_TING, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto },
+    rma: { nome: 'RMA', grafico: true, leggi: function (g) { return pbiLeggiReparto(PBI_RMA, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto }
   };
   function pbiPagina() { return PBI_PAGINE[$('#pbi-pagina').value] || PBI_PAGINE.pannello; }
 
@@ -2499,7 +2533,7 @@ kbd {
     pbiOccupato = true; pbiDisegna();
     pbiEsito('info', 'Leggo i valori da Power BI…');
     var pag = pbiPagina();
-    pag.leggi(giorno).then(function (d) { return Promise.all([pbiSfondoAttesa, pbiCaratteri]).then(function () { return d; }); }).then(function (d) {
+    pag.leggi(giorno).then(function (d) { return Promise.all([pbiSfondiPronti(), pbiCaratteri]).then(function () { return d; }); }).then(function (d) {
       if (pag.vuoto(d)) {
         pbiEsito('info', 'Per il ' + giorno.testo + ' il modello non ha valori: il riquadro non è stato toccato. Prova un altro giorno.');
         return;
@@ -2534,19 +2568,22 @@ kbd {
     });
     $('#pbi-prova').addEventListener('click', pbiProva);
     $('#pbi-compila').addEventListener('click', pbiCompila);
+    // L'immagine nel grafico vale per la pagina scelta qui sopra: cambiando pagina i comandi mostrano la sua.
+    function sfondoPagina() { return $('#pbi-pagina').value; }
     function sfondoMostra() {
-      var c = !!pbiSfondo.dati;
+      var id = sfondoPagina(), pag = PBI_PAGINE[id], haGrafico = !!(pag && pag.grafico), o = pbiSfondoDi(id), c = haGrafico && !!o.dati;
+      $('#pbi-sfondo-carica').hidden = !haGrafico;
       $('#pbi-sfondo-togli').hidden = !c; $('#pbi-sfondo-regola').hidden = !c;
       $('#pbi-sfondo-carica').textContent = c ? 'Cambia immagine' : 'Carica immagine';
-      $('#pbi-sfondo-stato').textContent = c ? 'Immagine caricata (' + Math.round(pbiSfondo.dati.length * 0.75 / 1024) + ' KB)' : 'Nessuna immagine';
-      $('#pbi-sfondo-opacita').value = pbiSfondo.opacita; $('#pbi-sfondo-misura').value = pbiSfondo.misura;
+      $('#pbi-sfondo-stato').textContent = !haGrafico ? 'La pagina «' + (pag ? pag.nome : '') + '» non ha un grafico: niente immagine.'
+        : c ? 'Immagine caricata per «' + pag.nome + '» (' + Math.round(o.dati.length * 0.75 / 1024) + ' KB)' : 'Nessuna immagine per «' + pag.nome + '»';
+      $('#pbi-sfondo-opacita').value = o.opacita; $('#pbi-sfondo-misura').value = o.misura;
     }
-    sfondoMostra();
     $('#pbi-sfondo-carica').addEventListener('click', function () { $('#pbi-sfondo-file').click(); });
     $('#pbi-sfondo-file').addEventListener('change', function (e) {
-      var f = e.target.files && e.target.files[0];
+      var f = e.target.files && e.target.files[0], id = sfondoPagina();
       e.target.value = '';
-      if (!f) return;
+      if (!f || !PBI_PAGINE[id] || !PBI_PAGINE[id].grafico) return;
       if (!/^image\/(png|jpeg|webp)$/.test(f.type)) { toast('Serve un\'immagine PNG, JPG o WebP.'); return; }
       var lettore = new FileReader();
       lettore.onerror = function () { toast('Non riesco a leggere il file.'); };
@@ -2554,16 +2591,22 @@ kbd {
         var im = new Image();
         im.onerror = function () { toast('Il file non è un\'immagine leggibile.'); };
         im.onload = function () {
-          // rimpicciolita alla larghezza che serve e salvata come PNG, così la trasparenza resta
+          // rimpicciolita alla larghezza che serve e salvata come PNG, così la trasparenza resta; se pesa troppo si prova
+          // il formato WebP, che tiene la trasparenza e pesa molto meno
           var f0 = Math.min(1, PBI_SFONDO_MAX / im.naturalWidth), cv = document.createElement('canvas');
           cv.width = Math.max(1, Math.round(im.naturalWidth * f0)); cv.height = Math.max(1, Math.round(im.naturalHeight * f0));
           cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
           var dati = cv.toDataURL('image/png');
-          if (dati.length > PBI_SFONDO_LIMITE) { toast('Immagine troppo pesante: usane una più semplice o più piccola.'); return; }
-          pbiSfondoImposta({ dati: dati, opacita: pbiSfondo.opacita, misura: pbiSfondo.misura }).then(function (ok) {
-            if (!ok) { toast('Il file non è un\'immagine leggibile.'); pbiSfondoImposta(null); }
+          if (dati.length > PBI_SFONDO_PESO) {
+            var leggero = cv.toDataURL('image/webp', 0.9);
+            if (/^data:image\/webp;/.test(leggero) && leggero.length < dati.length) dati = leggero;
+          }
+          if (dati.length > PBI_SFONDO_PESO) { toast('Immagine troppo pesante: usane una più semplice o più piccola.'); return; }
+          var prima = pbiSfondoDi(id);
+          pbiSfondoImposta(id, { dati: dati, opacita: prima.opacita, misura: prima.misura }).then(function (ok) {
+            if (!ok) { toast('Il file non è un\'immagine leggibile.'); pbiSfondoImposta(id, null); }
             else if (!pbiSfondoSalva()) toast('Immagine caricata, ma il browser non ha spazio per ricordarla.');
-            else toast('Immagine di sfondo caricata: ricompila il riquadro per vederla.');
+            else toast('Immagine caricata per «' + PBI_PAGINE[id].nome + '»: ricompila il riquadro per vederla.');
             sfondoMostra();
           });
         };
@@ -2571,15 +2614,18 @@ kbd {
       };
       lettore.readAsDataURL(f);
     });
-    $('#pbi-sfondo-togli').addEventListener('click', function () { pbiSfondoImposta(null); pbiSfondoSalva(); sfondoMostra(); toast('Immagine di sfondo tolta.'); });
+    $('#pbi-sfondo-togli').addEventListener('click', function () { pbiSfondoImposta(sfondoPagina(), null); pbiSfondoSalva(); sfondoMostra(); toast('Immagine tolta.'); });
     ['opacita', 'misura'].forEach(function (k) {
       $('#pbi-sfondo-' + k).addEventListener('change', function (e) {
-        pbiSfondo[k] = pbiSfondoNumero(e.target.value, k === 'opacita' ? 10 : 40, k === 'opacita' ? 100 : 130);
+        var o = pbiSfondi[sfondoPagina()];
+        if (!o) return;
+        o[k] = pbiSfondoNumero(e.target.value, k === 'opacita' ? 10 : 40, k === 'opacita' ? 100 : 130);
         pbiSfondoSalva(); toast('Ricompila il riquadro per vedere la modifica.');
       });
     });
     if (PBI_PAGINE[pbi.pagina]) $('#pbi-pagina').value = pbi.pagina;
-    $('#pbi-pagina').addEventListener('change', function (e) { pbi.pagina = e.target.value; pbiSalva(); });
+    $('#pbi-pagina').addEventListener('change', function (e) { pbi.pagina = e.target.value; pbiSalva(); sfondoMostra(); });
+    sfondoMostra();
     pbiDisegna();
   })();
 
@@ -2650,7 +2696,14 @@ kbd {
     var prima = state; state = m;
     var dest = indirizzi();
     state = prima;
-    var testo = JSON.stringify({ dimail: 1, creato: new Date().toISOString(), modello: m, pbi: pbiSfondo.dati ? { tenant: pbi.tenant, group: pbi.group, report: pbi.report, sfondoLV: pbiSfondo } : { tenant: pbi.tenant, group: pbi.group, report: pbi.report } });
+    // al Worker vanno solo le immagini delle pagine assegnate a un riquadro automatico
+    function pbiPerWorker(mod) {
+      var o = { tenant: pbi.tenant, group: pbi.group, report: pbi.report }, sf = {}, n = 0;
+      Object.keys(mod.auto || {}).forEach(function (k) { var id = mod.auto[k]; if (PBI_PAGINE[id] && pbiSfondi[id] && !sf[id]) { sf[id] = pbiSfondi[id]; n++; } });
+      if (n) o.sfondi = sf;
+      return o;
+    }
+    var testo = JSON.stringify({ dimail: 1, creato: new Date().toISOString(), modello: m, pbi: pbiPerWorker(m) });
     var fatto = 'Impostazioni copiate: ' + (quanti === 1 ? '1 riquadro automatico' : quanti + ' riquadri automatici') + ', ' +
       (dest.ok.length === 1 ? '1 destinatario' : dest.ok.length + ' destinatari') + '. Incollale nella pagina del Worker.' +
       (dest.ok.length ? '' : ' Attenzione: la lista mail è vuota.');
@@ -2812,7 +2865,7 @@ kbd {
       imgsAll.eff = {}; imgs = imgsAll.eff;
       if (cfg.imp.pbi) ['tenant', 'group', 'report'].forEach(function (k) { if (GUID.test(String(cfg.imp.pbi[k] || '').trim())) pbi[k] = String(cfg.imp.pbi[k]).trim(); });
       pbi.dataset = ''; pbi.nomeReport = '';
-      pbiSfondoImposta(cfg.imp.pbi ? cfg.imp.pbi.sfondoLV : null);
+      pbiSfondiImposta(cfg.imp.pbi ? (cfg.imp.pbi.sfondi || (cfg.imp.pbi.sfondoLV ? { lv: cfg.imp.pbi.sfondoLV } : null)) : null);
       pbiTok = { access: String(cfg.token || ''), refresh: '', scade: Date.now() + 40 * 60000, utente: '' };
       if (!pbiTok.access) throw new Error('Il Worker non ha consegnato l\'accesso a Power BI.');
       var giorno = { a: Number(g[1]), m: Number(g[2]), g: Number(g[3]), testo: g[3] + '/' + g[2] + '/' + g[1] };
@@ -2847,7 +2900,7 @@ kbd {
             riepilogo.pagine.push(PBI_PAGINE[id].nome);
           });
         });
-        return coda.then(function () { return Promise.all([pbiSfondoAttesa, pbiCaratteri]); }).then(function () {
+        return coda.then(function () { return Promise.all([pbiSfondiPronti(), pbiCaratteri]); }).then(function () {
           chiaviPbi.forEach(function (k) { if (!escluse[state.auto[k]]) imgsAll.eff[k] = PBI_PAGINE[state.auto[k]].immagine(letti[state.auto[k]]); });
         });
       });
