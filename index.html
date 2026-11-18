@@ -255,6 +255,9 @@ kbd {
 .pbi input[type="date"]:hover, .pbi select:hover { border-color: var(--muted); }
 .pbi select { font: inherit; font-size: 14px; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; flex: 1 1 160px; min-width: 0; max-width: 100%; cursor: pointer; }
 .pbi select:disabled { opacity: .55; cursor: default; }
+.auto-riga { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 8px; }
+.auto-riga .flabel { overflow-wrap: anywhere; }
+.auto-riga select { flex: none; width: 100%; }
 .pbi code, .hint code, .help code { font-family: ui-monospace, Consolas, 'Courier New', monospace; font-size: 12.5px; background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
 .pbi-ris { margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); font-size: 14px; display: grid; gap: 6px; overflow-wrap: anywhere; }
 .pbi-ris.err { border-color: #C62828; }
@@ -383,6 +386,25 @@ kbd {
         </div>
       </fieldset>
 
+      <fieldset class="pbi" id="auto">
+        <legend>Invio automatico</legend>
+        <div class="stack" id="auto-corpo">
+          <span class="big-label">RIQUADRI CHE SI COMPILANO DA SOLI</span>
+          <p class="hint">Per ogni riquadro scegli la pagina di Power BI che lo riempie quando la mail parte dal Worker. I riquadri lasciati su «Nessuna» restano fuori dalla mail automatica.</p>
+          <div class="stack" id="auto-lista"></div>
+          <div class="field">
+            <label for="auto-oggetto">Oggetto della mail</label>
+            <input type="text" id="auto-oggetto">
+            <p class="hint"><code>{data}</code> diventa la data del giorno di invio.</p>
+          </div>
+          <div class="pbi-row">
+            <button type="button" class="btn primary" id="auto-copia">Copia impostazioni per il Worker</button>
+          </div>
+          <p class="hint">Incollale nella pagina del Worker. Vanno ricopiate ogni volta che cambi testi, sezioni, destinatari o queste scelte.</p>
+        </div>
+        <p class="hint" id="auto-altro" hidden>L'invio automatico riguarda solo REPORT EFFICIENZE.</p>
+      </fieldset>
+
       <button type="button" class="link" id="reset">Ripristina predefiniti</button>
     </form>
 
@@ -451,6 +473,22 @@ kbd {
   if (window.__dimailRitorno) return; // finestrella di ritorno dall'accesso Microsoft: qui la pagina non parte
   var KEY = 'proforma-mail-v2', KEY_OLD = 'proforma-mail-v1';
 
+  // Modalità automatica: il Worker apre questa pagina in un browser senza schermo con «?auto=biglietto&w=indirizzo del Worker».
+  // In questa modalità la pagina non legge e non scrive nulla di ciò che è salvato nel browser: lavora solo con
+  // quello che le consegna il Worker.
+  var AUTO = null;
+  (function () {
+    var t = '', w = '';
+    try {
+      var q = new URLSearchParams(location.search);
+      t = q.get('auto') || ''; w = q.get('w') || '';
+      if (!t) { q = new URLSearchParams(String(location.hash || '').replace(/^#/, '')); t = q.get('auto') || ''; w = q.get('w') || ''; }
+    } catch (e) { return; }
+    if (!/^[A-Za-z0-9._~-]{20,}$/.test(t)) return;
+    if (!/^https:\/\/[a-z0-9.-]+(:\d+)?$/i.test(w) && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(w)) return;
+    AUTO = { t: t, w: w, oggi: null };
+  })();
+
   // I report: stessa struttura, contenuti e screenshot separati
   var MODELLI = [
     { id: 'eff', nome: 'REPORT EFFICIENZE', hash: 'report-efficienze' },
@@ -474,7 +512,9 @@ kbd {
         { titolo: 'Criticità e azioni', note: true }
       ],
       chiusura: 'Un saluto',
-      destinatari: ''
+      destinatari: '',
+      oggetto: 'REPORT EFFICIENZE {data}',
+      auto: {}   // invio automatico: chiave del riquadro → pagina di Power BI che lo riempie
     },
     chanel: {
       apertura: 'Buon pomeriggio,\ndi seguito l\'aggiornamento delle spedizioni Chanel alla data odierna **({data}).**',
@@ -515,6 +555,7 @@ kbd {
       s.subs.forEach(function (b) { if (!b.id) b.id = next++; if (typeof b.testo !== 'string') b.testo = ''; });
     });
     delete m.sottotitoli;
+    if (m.auto !== undefined && (typeof m.auto !== 'object' || m.auto === null || Array.isArray(m.auto))) m.auto = {};
   }
   function nuovoId() {
     var mx = 0;
@@ -523,14 +564,16 @@ kbd {
   }
 
   var store = null;
-  try { var raw = localStorage.getItem(KEY); if (raw) store = JSON.parse(raw); } catch (e) { store = null; }
+  if (!AUTO) { try { var raw = localStorage.getItem(KEY); if (raw) store = JSON.parse(raw); } catch (e) { store = null; } }
   if (!store || typeof store.modelli !== 'object' || !store.modelli) {
     store = { attivo: 'eff', modelli: {} };
     // quello che avevi già impostato diventa REPORT EFFICIENZE
-    try {
-      var vecchio = JSON.parse(localStorage.getItem(KEY_OLD) || 'null');
-      if (valido(vecchio)) store.modelli.eff = vecchio;
-    } catch (e) {}
+    if (!AUTO) {
+      try {
+        var vecchio = JSON.parse(localStorage.getItem(KEY_OLD) || 'null');
+        if (valido(vecchio)) store.modelli.eff = vecchio;
+      } catch (e) {}
+    }
   }
   MODELLI.forEach(function (M) {
     var m = store.modelli[M.id];
@@ -582,6 +625,8 @@ kbd {
   // «Oggi» è il giorno in cui la mail viene copiata (o spedita), quindi la data si aggiorna da sola.
   function d(s) {
     var o = new Date();
+    var forzata = AUTO && /^(\d{4})-(\d{2})-(\d{2})$/.exec(AUTO.oggi || '');
+    if (forzata) o = new Date(Number(forzata[1]), Number(forzata[2]) - 1, Number(forzata[3]));
     function due(n) { return ('0' + n).slice(-2); }
     var breve = due(o.getDate()) + '/' + due(o.getMonth() + 1);
     return String(s || '').replace(/\{data_completa\}/gi, breve + '/' + o.getFullYear()).replace(/\{data\}/gi, breve);
@@ -692,7 +737,7 @@ kbd {
     return out.join('\n').trim();
   }
 
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
+  function save() { if (AUTO) return; try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
 
   // Lista destinatari: accetta righe, virgole, punti e virgola e anche "Nome <indirizzo>"; toglie i doppioni
   function indirizzi() {
@@ -770,6 +815,7 @@ kbd {
     $('#svuota').disabled = !fotoVisibili(attivo);
     aggiornaDestinatari();
     pbiRiquadri();
+    autoDisegna();
     fit();
     save();
   }
@@ -1198,17 +1244,18 @@ kbd {
 
   var pbi = clone(PBI_DEF);
   try {
-    var pbiSalvato = JSON.parse(localStorage.getItem(PBI_KEY) || 'null');
+    var pbiSalvato = AUTO ? null : JSON.parse(localStorage.getItem(PBI_KEY) || 'null');
     if (pbiSalvato && typeof pbiSalvato === 'object') {
       Object.keys(PBI_DEF).forEach(function (k) { if (typeof pbiSalvato[k] === 'string' && pbiSalvato[k]) pbi[k] = pbiSalvato[k]; });
     }
   } catch (e) {}
   var pbiTok = null;
-  try { pbiTok = JSON.parse(sessionStorage.getItem(PBI_TOK) || 'null'); } catch (e) { pbiTok = null; }
+  if (!AUTO) { try { pbiTok = JSON.parse(sessionStorage.getItem(PBI_TOK) || 'null'); } catch (e) { pbiTok = null; } }
   if (!pbiTok || typeof pbiTok.access !== 'string') pbiTok = null;
 
-  function pbiSalva() { try { localStorage.setItem(PBI_KEY, JSON.stringify(pbi)); } catch (e) {} }
+  function pbiSalva() { if (AUTO) return; try { localStorage.setItem(PBI_KEY, JSON.stringify(pbi)); } catch (e) {} }
   function pbiSalvaTok() {
+    if (AUTO) return;
     try { if (pbiTok) sessionStorage.setItem(PBI_TOK, JSON.stringify(pbiTok)); else sessionStorage.removeItem(PBI_TOK); } catch (e) {}
   }
   // L'indirizzo di questa pagina, senza la parte dopo # e senza "index.html": è quello da registrare in Entra
@@ -1493,9 +1540,16 @@ kbd {
     }).then(null, function () { return null; });
   }
   function pbiDataOra(q) {
-    function due(n) { return ('0' + n).slice(-2); }
     if (!q) return ['--', '--'];
-    return [due(q.getDate()) + '/' + due(q.getMonth() + 1) + '/' + q.getFullYear(), due(q.getHours()) + ':' + due(q.getMinutes()) + ':' + due(q.getSeconds())];
+    try {
+      return [
+        new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', day: '2-digit', month: '2-digit', year: 'numeric' }).format(q),
+        new Intl.DateTimeFormat('it-IT', { timeZone: 'Europe/Rome', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(q)
+      ];
+    } catch (e) {
+      var due = function (n) { return ('0' + n).slice(-2); };
+      return [due(q.getDate()) + '/' + due(q.getMonth() + 1) + '/' + q.getFullYear(), due(q.getHours()) + ':' + due(q.getMinutes()) + ':' + due(q.getSeconds())];
+    }
   }
   // I valori letti, per l'elenco di controllo sotto i pulsanti
   function pbiElenco(d) {
@@ -1956,12 +2010,234 @@ kbd {
     pbiDisegna();
   })();
 
+  // ───────── Invio automatico ─────────
+  // Le scelte (riquadro → pagina, oggetto) stanno nel modello REPORT EFFICIENZE e viaggiano verso il Worker con «Copia impostazioni».
+  function autoVoci() {
+    var v = [];
+    store.modelli.eff.sezioni.forEach(function (sz_, i) {
+      var nome = (i + 1) + '. ' + (sz_.titolo.trim() || 'Titolo sezione');
+      var bl = blocchi(sz_);
+      if (bl) bl.forEach(function (b, j) { v.push([sz_.id + '-' + b.id, nome + ' · ' + (String(b.testo || '').trim() || 'Sottotitolo ' + (j + 1))]); });
+      else v.push([String(sz_.id), nome]);
+    });
+    return v;
+  }
+  function autoDisegna() {
+    var corpo = $('#auto-corpo');
+    if (!corpo) return;
+    var eff = attivo === 'eff';
+    corpo.hidden = !eff; $('#auto-altro').hidden = eff;
+    if (!eff) return;
+    var m = store.modelli.eff;
+    if (!m.auto || typeof m.auto !== 'object') m.auto = {};
+    var voci = autoVoci(), valide = {};
+    voci.forEach(function (v) { valide[v[0]] = 1; });
+    Object.keys(m.auto).forEach(function (k) { if (!valide[k] || !PBI_PAGINE[m.auto[k]]) delete m.auto[k]; });
+    $('#auto-lista').innerHTML = voci.map(function (v, n) {
+      return '<div class="auto-riga"><label class="flabel" for="auto-s-' + n + '">' + esc(v[1]) + '</label>' +
+        '<select id="auto-s-' + n + '" data-chiave="' + esc(v[0]) + '"><option value="">Nessuna</option>' +
+        Object.keys(PBI_PAGINE).map(function (id) { return '<option value="' + id + '"' + (m.auto[v[0]] === id ? ' selected' : '') + '>' + esc(PBI_PAGINE[id].nome) + '</option>'; }).join('') +
+        '</select></div>';
+    }).join('');
+    var og = $('#auto-oggetto');
+    if (document.activeElement !== og) og.value = m.oggetto === undefined ? DEFS.eff.oggetto : m.oggetto;
+  }
+  $('#auto-lista').addEventListener('change', function (e) {
+    var sel = e.target.closest('select[data-chiave]');
+    if (!sel) return;
+    var m = store.modelli.eff;
+    if (sel.value) m.auto[sel.getAttribute('data-chiave')] = sel.value; else delete m.auto[sel.getAttribute('data-chiave')];
+    save();
+  });
+  $('#auto-oggetto').addEventListener('input', function (e) { store.modelli.eff.oggetto = e.target.value; save(); });
+  $('#auto-copia').addEventListener('click', function () {
+    var m = store.modelli.eff, quanti = Object.keys(m.auto || {}).length;
+    if (!quanti) { toast('Scegli prima almeno una pagina per un riquadro.'); return; }
+    var prima = state; state = m;
+    var dest = indirizzi();
+    state = prima;
+    var testo = JSON.stringify({ dimail: 1, creato: new Date().toISOString(), modello: m, pbi: { tenant: pbi.tenant, group: pbi.group, report: pbi.report } });
+    var fatto = 'Impostazioni copiate: ' + (quanti === 1 ? '1 riquadro automatico' : quanti + ' riquadri automatici') + ', ' +
+      (dest.ok.length === 1 ? '1 destinatario' : dest.ok.length + ' destinatari') + '. Incollale nella pagina del Worker.' +
+      (dest.ok.length ? '' : ' Attenzione: la lista mail è vuota.');
+    var ripiego = function () {
+      var ta = document.createElement('textarea');
+      ta.value = testo; ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;left:-99999px;top:0;';
+      document.body.appendChild(ta); ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      toast(ok ? fatto : 'La copia non è riuscita: riprova.');
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(testo).then(function () { toast(fatto); }, ripiego); return; }
+    } catch (e) {}
+    ripiego();
+  });
+
+  // Il giro completo senza nessuno davanti: impostazioni dal Worker → lettura da Power BI → disegno → mail → consegna al Worker.
+  function autoEsegui() {
+    var cfg = null, riepilogo = { pagine: [] };
+    function chiama(percorso, opz) { return fetch(AUTO.w + percorso + '?t=' + encodeURIComponent(AUTO.t), opz); }
+    // Segnale di fine per il browser senza schermo. Il testo del segnale è composto qui, così non compare nel sorgente della pagina.
+    function fine(esito, testo) {
+      try { imgsAll.eff = {}; imgs = imgsAll[attivo]; $('#mail').innerHTML = ''; } catch (e) {}
+      var el = document.createElement('div');
+      el.id = 'dimail-auto-fine';
+      el.hidden = true;
+      el.setAttribute('data-esito', esito);
+      el.textContent = 'DIMAIL' + 'ESITO[' + esito + '] ' + String(testo || '').slice(0, 500);
+      document.body.appendChild(el);
+    }
+    function b64url(t) { return btoa(unescape(encodeURIComponent(t))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+    function errore(e) {
+      var testo = (e && e.message) ? e.message : String(e);
+      return chiama('/auto/errore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messaggio: testo, riepilogo: riepilogo }) })
+        .then(function () { fine('errore', testo); }, function () { fine('errore', testo); });
+    }
+    // Testo → base64 (UTF-8), con righe da 76 caratteri come vuole il formato delle mail
+    function utf8b64(t) {
+      var b = new TextEncoder().encode(t), out = '';
+      for (var i = 0; i < b.length; i += 8190) out += String.fromCharCode.apply(null, b.subarray(i, i + 8190));
+      return btoa(out);
+    }
+    function righe(b64) { return b64.replace(/(.{76})/g, '$1\r\n').replace(/\r\n$/, ''); }
+    // Intestazione con lettere accentate: spezzata in «parole codificate» che restano sotto i 75 caratteri
+    function intestazione(t) {
+      t = String(t).replace(/[\r\n]+/g, ' ');
+      if (/^[\x20-\x7E]*$/.test(t)) return t;
+      var pezzi = [], attuale = '', enc = new TextEncoder();
+      Array.from(t).forEach(function (ch) {
+        if (enc.encode(attuale + ch).length > 39) { pezzi.push(attuale); attuale = ''; }
+        attuale += ch;
+      });
+      if (attuale) pezzi.push(attuale);
+      return pezzi.map(function (p) { return '=?UTF-8?B?' + utf8b64(p) + '?='; }).join('\r\n ');
+    }
+    function giornoRoma(q) {
+      try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit' }).format(q); } catch (e) { return ''; }
+    }
+
+    chiama('/auto/config').then(function (r) {
+      return r.json().then(function (j) {
+        if (!r.ok || !j || !j.ok) throw new Error((j && j.errore) || 'Il Worker non ha consegnato le impostazioni (' + r.status + ').');
+        return j;
+      });
+    }).then(function (j) {
+      cfg = j;
+      var g = /^(\d{4})-(\d{2})-(\d{2})$/.exec(cfg.giorno || '');
+      if (!g) throw new Error('Giorno non valido nelle impostazioni del Worker.');
+      if (!cfg.imp || !valido(cfg.imp.modello)) throw new Error('Nel Worker mancano le impostazioni copiate da DiMail.');
+      AUTO.oggi = cfg.giorno;
+      riepilogo.giorno = cfg.giorno; riepilogo.modo = cfg.modo;
+      // il modello arriva dal Worker: prende il posto di quello predefinito, solo per questo giro
+      var m = clone(cfg.imp.modello);
+      Object.keys(DEFS.eff).forEach(function (k) { if (m[k] === undefined) m[k] = clone(DEFS.eff[k]); });
+      normalizza(m);
+      store.modelli.eff = m; attivo = 'eff'; store.attivo = 'eff'; state = m;
+      imgsAll.eff = {}; imgs = imgsAll.eff;
+      if (cfg.imp.pbi) ['tenant', 'group', 'report'].forEach(function (k) { if (GUID.test(String(cfg.imp.pbi[k] || '').trim())) pbi[k] = String(cfg.imp.pbi[k]).trim(); });
+      pbi.dataset = ''; pbi.nomeReport = '';
+      pbiTok = { access: String(cfg.token || ''), refresh: '', scade: Date.now() + 40 * 60000, utente: '' };
+      if (!pbiTok.access) throw new Error('Il Worker non ha consegnato l\'accesso a Power BI.');
+      var giorno = { a: Number(g[1]), m: Number(g[2]), g: Number(g[3]), testo: g[3] + '/' + g[2] + '/' + g[1] };
+      var chiaviAuto = chiavi(state).filter(function (k) { return !!PBI_PAGINE[(state.auto || {})[k]]; });
+      if (!chiaviAuto.length) throw new Error('Nessun riquadro ha una pagina di Power BI assegnata: sceglile in DiMail e ricopia le impostazioni.');
+
+      // se richiesto, la mail parte solo se il modello è stato aggiornato oggi
+      var controllo = cfg.soloAggiornatoOggi ? pbiAggiornamento() : Promise.resolve(null);
+      return controllo.then(function (agg) {
+        if (cfg.soloAggiornatoOggi && agg && giornoRoma(agg) && giornoRoma(agg) !== cfg.giorno) {
+          throw new Error('Il modello di Power BI non è stato aggiornato oggi (ultimo aggiornamento ' + pbiDataOra(agg).join(' ') + '): mail non inviata.');
+        }
+        // una lettura per pagina, anche se la stessa pagina riempie più riquadri
+        var letti = {}, coda = Promise.resolve();
+        chiaviAuto.forEach(function (k) {
+          var id = state.auto[k];
+          if (letti[id]) return;
+          letti[id] = true;
+          coda = coda.then(function () { return PBI_PAGINE[id].leggi(giorno); }).then(function (dati) {
+            if (PBI_PAGINE[id].vuoto(dati)) throw new Error('Per il ' + giorno.testo + ' il modello non ha valori per «' + PBI_PAGINE[id].nome + '»: mail non inviata.');
+            letti[id] = dati;
+            riepilogo.pagine.push(PBI_PAGINE[id].nome);
+          });
+        });
+        return coda.then(function () {
+          chiaviAuto.forEach(function (k) { imgsAll.eff[k] = PBI_PAGINE[state.auto[k]].immagine(letti[state.auto[k]]); });
+          return chiaviAuto;
+        });
+      });
+    }).then(function (chiaviAuto) {
+      // nella mail automatica entrano solo le sezioni con un riquadro compilato; niente righe «Note» da riempire a mano
+      var tieni = {};
+      chiaviAuto.forEach(function (k) { tieni[k] = 1; });
+      state.sezioni = state.sezioni.filter(function (sz_) {
+        sz_.note = false;
+        if (blocchi(sz_)) { sz_.subs = sz_.subs.filter(function (b) { return tieni[sz_.id + '-' + b.id]; }); return sz_.subs.length > 0; }
+        return !!tieni[String(sz_.id)];
+      });
+      var a = cfg.modo === 'prova' ? (cfg.soloA || []) : indirizzi().ok;
+      if (!a.length) throw new Error(cfg.modo === 'prova' ? 'Manca l\'indirizzo a cui mandare la prova.' : 'La lista mail è vuota: aggiungi i destinatari in DiMail e ricopia le impostazioni.');
+      if (!cfg.mittente) throw new Error('Manca il mittente: collega Gmail nella pagina del Worker.');
+      var oggetto = (cfg.modo === 'prova' ? '[PROVA] ' : '') + (d(state.oggetto).trim() || 'REPORT EFFICIENZE');
+      var html = buildEmail('export'), testo = buildText(), allegati = [];
+      chiavi(state).forEach(function (k, n) {
+        var im = imgsAll.eff[k];
+        if (!im) return;
+        if (html.indexOf(im.src) === -1) return;   // stessa immagine già agganciata a un altro riquadro
+        var cid = 'riquadro' + (n + 1) + '@dimail';
+        html = html.split(im.src).join('cid:' + cid);
+        allegati.push({ cid: cid, nome: 'riquadro-' + (n + 1) + '.png', b64: im.src.slice(im.src.indexOf(',') + 1) });
+      });
+      var casuale = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      var REL = 'dm-r-' + casuale, ALT = 'dm-a-' + casuale, N = '\r\n';
+      var mime = [
+        'From: ' + cfg.mittente,
+        'To: ' + a.join(',\r\n '),   // un indirizzo per riga: l'intestazione non supera mai la lunghezza ammessa
+        'Subject: ' + intestazione(oggetto),
+        'Date: ' + new Date().toUTCString().replace('GMT', '+0000'),
+        'MIME-Version: 1.0',
+        'Content-Type: multipart/related; boundary="' + REL + '"',
+        '',
+        '--' + REL,
+        'Content-Type: multipart/alternative; boundary="' + ALT + '"',
+        '',
+        '--' + ALT,
+        'Content-Type: text/plain; charset=UTF-8',
+        'Content-Transfer-Encoding: base64',
+        '',
+        righe(utf8b64(testo)),
+        '--' + ALT,
+        'Content-Type: text/html; charset=UTF-8',
+        'Content-Transfer-Encoding: base64',
+        '',
+        righe(utf8b64('<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:0;">' + html + '</body></html>')),
+        '--' + ALT + '--'
+      ];
+      allegati.forEach(function (al) {
+        mime.push('--' + REL, 'Content-Type: image/png; name="' + al.nome + '"', 'Content-Transfer-Encoding: base64',
+          'Content-ID: <' + al.cid + '>', 'Content-Disposition: inline; filename="' + al.nome + '"', '', righe(al.b64));
+      });
+      mime.push('--' + REL + '--', '');
+      var corpo = mime.join(N);
+      riepilogo.destinatari = a.length; riepilogo.riquadri = allegati.length; riepilogo.kb = Math.round(corpo.length / 1024); riepilogo.oggetto = oggetto;
+      return chiama('/auto/esito', { method: 'POST', headers: { 'Content-Type': 'message/rfc822', 'X-Dimail-Riepilogo': b64url(JSON.stringify(riepilogo)) }, body: corpo });
+    }).then(function (r) {
+      return r.json().then(function (j) { return j; }, function () { return null; }).then(function (j) {
+        if (!r.ok || !j || !j.ok) { fine('errore', (j && j.errore) || 'Il Worker non è riuscito a spedire la mail (' + r.status + ').'); return; }
+        fine('ok', 'Mail inviata a ' + riepilogo.destinatari + (riepilogo.destinatari === 1 ? ' destinatario.' : ' destinatari.'));
+      });
+    }).catch(errore);
+  }
+
   $('#editor').addEventListener('submit', function (e) { e.preventDefault(); });
 
   $('#p-larg').textContent = BOX_W.toLocaleString('it-IT');
   fillFields();
   renderSezioni();
   update();
+  if (AUTO) autoEsegui();
 })();
 </script>
 </body>
