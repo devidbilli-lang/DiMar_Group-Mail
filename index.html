@@ -421,6 +421,16 @@ kbd {
             <input type="text" id="auto-oggetto">
             <p class="hint"><code>{data}</code> diventa la data del giorno di invio.</p>
           </div>
+          <div class="field">
+            <label for="auto-mittente">Nome del mittente</label>
+            <input type="text" id="auto-mittente" autocomplete="off" placeholder="Nome Cognome">
+            <p class="hint">Il nome che i destinatari vedono accanto all'indirizzo. L'indirizzo resta quello dell'account Gmail collegato nel Worker.</p>
+          </div>
+          <div class="field">
+            <label for="auto-firma">Firma</label>
+            <textarea id="auto-firma" rows="4" spellcheck="false" placeholder="Nome Cognome&#10;Ruolo&#10;Azienda · telefono"></textarea>
+            <p class="hint">Va in fondo alla mail automatica, a capo come la scrivi; <code>**testo**</code> esce in grassetto. Nelle mail spedite dal Worker la firma di Gmail non viene aggiunta: va scritta qui.</p>
+          </div>
           <div class="pbi-row">
             <button type="button" class="btn primary" id="auto-copia">Copia impostazioni per il Worker</button>
           </div>
@@ -516,7 +526,8 @@ kbd {
   // I report: stessa struttura, contenuti e screenshot separati
   var MODELLI = [
     { id: 'eff', nome: 'REPORT EFFICIENZE', hash: 'report-efficienze' },
-    { id: 'chanel', nome: 'CHANEL-AGGIORNAMENTO SPEDIZIONI', hash: 'chanel-spedizioni' }
+    { id: 'chanel', nome: 'CHANEL-AGGIORNAMENTO SPEDIZIONI', hash: 'chanel-spedizioni' },
+    { id: 'ore', nome: 'CHANEL-ORE SPEDITE', hash: 'chanel-ore-spedite' }
   ];
   var DEFS = {
     eff: {
@@ -538,6 +549,8 @@ kbd {
       chiusura: 'Un saluto',
       destinatari: '',
       oggetto: 'REPORT EFFICIENZE {data}',
+      mittenteNome: '',   // nome mostrato accanto all'indirizzo del mittente (solo invio automatico)
+      firma: '',          // firma in fondo alla mail automatica
       nexusUrl: '',   // indirizzo di NEXUS, per il riquadro con la griglia di Entra in produzione
       auto: {}   // invio automatico: chiave del riquadro → fonte che lo riempie (pagina di Power BI o griglia di NEXUS)
     },
@@ -554,6 +567,23 @@ kbd {
       chiusuraColor: '#26221E',
       sezioni: [
         { titolo: 'Aggiornamento spedizioni', sub: true, sotto: '', note: false }
+      ],
+      chiusura: 'Un saluto',
+      destinatari: ''
+    },
+    ore: {
+      apertura: 'Buon pomeriggio,\ndi seguito le ore spedite Chanel alla data odierna **({data}).**',
+      numeri: true,
+      aperturaSize: 14,
+      titoli: 16,
+      chiusuraSize: 14,
+      sottoSize: 14,
+      aperturaColor: '#26221E',
+      titoliColor: '#26221E',
+      sottoColor: '#4A443D',
+      chiusuraColor: '#26221E',
+      sezioni: [
+        { titolo: 'Ore spedite', sub: true, sotto: '', note: false }
       ],
       chiusura: 'Un saluto',
       destinatari: ''
@@ -745,8 +775,12 @@ kbd {
     var chiusura = String(state.chiusura || '').trim()
       ? '<tr><td style="padding:28px 0 0 0;font-family:' + FONT + ';font-size:' + sz('chiusuraSize') + 'px;line-height:1.5;color:' + col('chiusuraColor') + ';">' + esc(d(state.chiusura).trim()) + '</td></tr>'
       : '';
+    // la firma entra solo nella mail automatica: in quella fatta a mano Gmail aggiunge già la sua
+    var firma = (AUTO && String(state.firma || '').trim())
+      ? '<tr><td style="padding:' + (chiusura ? 14 : 28) + 'px 0 0 0;font-family:' + FONT + ';font-size:' + sz('chiusuraSize') + 'px;line-height:1.5;color:' + col('chiusuraColor') + ';">' + fmt(d(state.firma).trim()) + '</td></tr>'
+      : '';
     return '<table role="presentation" width="' + BOX_W + '" cellpadding="0" cellspacing="0" border="0" style="width:' + BOX_W + 'px;border-collapse:collapse;font-family:' + FONT + ';-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">' +
-      apertura + sez + chiusura +
+      apertura + sez + chiusura + firma +
     '</table>';
   }
 
@@ -760,6 +794,7 @@ kbd {
       out.push('');
     });
     if (String(state.chiusura || '').trim()) out.push(d(state.chiusura).trim());
+    if (AUTO && String(state.firma || '').trim()) { out.push(''); out.push(d(state.firma).trim().replace(/\*\*/g, '')); }
     return out.join('\n').trim();
   }
 
@@ -2573,6 +2608,10 @@ kbd {
     if (document.activeElement !== og) og.value = m.oggetto === undefined ? DEFS.eff.oggetto : m.oggetto;
     var nx = $('#auto-nexus');
     if (document.activeElement !== nx) nx.value = m.nexusUrl || '';
+    var mn = $('#auto-mittente');
+    if (document.activeElement !== mn) mn.value = m.mittenteNome || '';
+    var fa = $('#auto-firma');
+    if (document.activeElement !== fa) fa.value = m.firma || '';
   }
   $('#auto-lista').addEventListener('change', function (e) {
     var sel = e.target.closest('select[data-chiave]');
@@ -2582,6 +2621,8 @@ kbd {
     save();
   });
   $('#auto-oggetto').addEventListener('input', function (e) { store.modelli.eff.oggetto = e.target.value; save(); });
+  $('#auto-mittente').addEventListener('input', function (e) { store.modelli.eff.mittenteNome = e.target.value; save(); });
+  $('#auto-firma').addEventListener('input', function (e) { store.modelli.eff.firma = e.target.value; save(); });
   $('#auto-nexus').addEventListener('input', function (e) { store.modelli.eff.nexusUrl = e.target.value.trim(); save(); });
   $('#auto-copia').addEventListener('click', function () {
     var m = store.modelli.eff, quanti = Object.keys(m.auto || {}).length;
@@ -2712,6 +2753,12 @@ kbd {
     }
     function righe(b64) { return b64.replace(/(.{76})/g, '$1\r\n').replace(/\r\n$/, ''); }
     // Intestazione con lettere accentate: spezzata in «parole codificate» che restano sotto i 75 caratteri
+    // «Nome Cognome <indirizzo>»: il nome tra virgolette se è semplice, codificato se ha lettere accentate
+    function mittenteConNome(indirizzo, nome) {
+      nome = String(nome || '').replace(/[\r\n"<>\\]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+      if (!nome) return indirizzo;
+      return (/^[\x20-\x7E]*$/.test(nome) ? '"' + nome + '"' : intestazione(nome)) + ' <' + indirizzo + '>';
+    }
     function intestazione(t) {
       t = String(t).replace(/[\r\n]+/g, ' ');
       if (/^[\x20-\x7E]*$/.test(t)) return t;
@@ -2840,7 +2887,7 @@ kbd {
       var casuale = Math.random().toString(36).slice(2) + Date.now().toString(36);
       var REL = 'dm-r-' + casuale, ALT = 'dm-a-' + casuale, N = '\r\n';
       var mime = [
-        'From: ' + cfg.mittente,
+        'From: ' + mittenteConNome(cfg.mittente, state.mittenteNome),
         'To: ' + a.join(',\r\n '),   // un indirizzo per riga: l'intestazione non supera mai la lunghezza ammessa
         'Subject: ' + intestazione(oggetto),
         'Date: ' + new Date().toUTCString().replace('GMT', '+0000'),
