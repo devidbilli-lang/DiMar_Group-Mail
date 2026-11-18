@@ -2011,9 +2011,19 @@ kbd {
   }
 
   // Le pagine di Power BI che DiMail sa ridisegnare
+  // Efficienza LV copre un periodo: «senza dati del giorno» vuol dire che manca proprio il giorno finale
+  // (niente «Efficienza Oggi» e nessun punto del grafico in quella data), anche se i giorni prima ci sono.
+  function pbiSenzaGiornoLV(d) {
+    if (pbiVuotoLV(d)) return true;
+    if (d.ind[2] && d.ind[2].v !== null) return false;
+    return !d.trend.some(function (p) {
+      return p.data && d.al && p.data.getFullYear() === d.al.getFullYear() && p.data.getMonth() === d.al.getMonth() && p.data.getDate() === d.al.getDate() && (p.eff !== null || p.efc !== null);
+    });
+  }
+  // senzaGiorno: nell'invio automatico una pagina senza dati per il giorno della mail viene lasciata fuori
   var PBI_PAGINE = {
-    pannello: { nome: 'Pannello di Controllo', leggi: pbiLeggi, elenco: pbiElenco, vuoto: pbiVuoto, immagine: pbiImmagine },
-    lv: { nome: 'Efficienza LV', leggi: pbiLeggiLV, elenco: pbiElencoLV, vuoto: pbiVuotoLV, immagine: pbiImmagineLV }
+    pannello: { nome: 'Pannello di Controllo', leggi: pbiLeggi, elenco: pbiElenco, vuoto: pbiVuoto, senzaGiorno: pbiVuoto, immagine: pbiImmagine },
+    lv: { nome: 'Efficienza LV', leggi: pbiLeggiLV, elenco: pbiElencoLV, vuoto: pbiVuotoLV, senzaGiorno: pbiSenzaGiornoLV, immagine: pbiImmagineLV }
   };
   function pbiPagina() { return PBI_PAGINE[$('#pbi-pagina').value] || PBI_PAGINE.pannello; }
 
@@ -2314,6 +2324,7 @@ kbd {
 
       // se richiesto, la mail parte solo se il modello è stato aggiornato oggi
       var controllo = (cfg.soloAggiornatoOggi && chiaviPbi.length) ? pbiAggiornamento() : Promise.resolve(null);
+      var escluse = {};   // pagine di Power BI senza dati per il giorno: i loro riquadri restano fuori dalla mail
       var pbiFatto = controllo.then(function (agg) {
         if (cfg.soloAggiornatoOggi && agg && giornoRoma(agg) && giornoRoma(agg) !== cfg.giorno) {
           throw new Error('Il modello di Power BI non è stato aggiornato oggi (ultimo aggiornamento ' + pbiDataOra(agg).join(' ') + '): mail non inviata.');
@@ -2325,13 +2336,13 @@ kbd {
           if (letti[id]) return;
           letti[id] = true;
           coda = coda.then(function () { return PBI_PAGINE[id].leggi(giorno); }).then(function (dati) {
-            if (PBI_PAGINE[id].vuoto(dati)) throw new Error('Per il ' + giorno.testo + ' il modello non ha valori per «' + PBI_PAGINE[id].nome + '»: mail non inviata.');
+            if (PBI_PAGINE[id].senzaGiorno(dati)) { escluse[id] = true; letti[id] = null; riepilogo.pagine.push(PBI_PAGINE[id].nome + ' esclusa: senza dati'); return; }
             letti[id] = dati;
             riepilogo.pagine.push(PBI_PAGINE[id].nome);
           });
         });
         return coda.then(function () { return pbiSfondoAttesa; }).then(function () {
-          chiaviPbi.forEach(function (k) { imgsAll.eff[k] = PBI_PAGINE[state.auto[k]].immagine(letti[state.auto[k]]); });
+          chiaviPbi.forEach(function (k) { if (!escluse[state.auto[k]]) imgsAll.eff[k] = PBI_PAGINE[state.auto[k]].immagine(letti[state.auto[k]]); });
         });
       });
       // Power BI e NEXUS vanno avanti insieme; alla fine si guarda prima NEXUS: se non ha dati la mail non parte, qualunque cosa dica Power BI
@@ -2346,7 +2357,10 @@ kbd {
             chiaviNexus.forEach(function (k) { imgsAll.eff[k] = { src: foto.src, ratio: foto.ratio }; });
             riepilogo.pagine.push('NEXUS');
           }
-          return chiaviAuto;
+          var rimaste = chiaviAuto.filter(function (k) { return !escluse[state.auto[k]]; });
+          if (!rimaste.length) throw new Error('Per il ' + giorno.testo + ' nessuna delle pagine assegnate ha dati: mail non inviata.');
+          riepilogo.escluse = Object.keys(escluse).map(function (id) { return PBI_PAGINE[id].nome; });
+          return rimaste;
         });
       }, function (eNexus) {
         return esitoPbi.then(function (e) { throw e || eNexus; });
@@ -2409,7 +2423,8 @@ kbd {
     }).then(function (r) {
       return r.json().then(function (j) { return j; }, function () { return null; }).then(function (j) {
         if (!r.ok || !j || !j.ok) { fine('errore', (j && j.errore) || 'Il Worker non è riuscito a spedire la mail (' + r.status + ').'); return; }
-        fine('ok', 'Mail inviata a ' + riepilogo.destinatari + (riepilogo.destinatari === 1 ? ' destinatario.' : ' destinatari.'));
+        fine('ok', 'Mail inviata a ' + riepilogo.destinatari + (riepilogo.destinatari === 1 ? ' destinatario.' : ' destinatari.') +
+          ((riepilogo.escluse && riepilogo.escluse.length) ? ' Lasciate fuori perché senza dati per il giorno: ' + riepilogo.escluse.join(', ') + '.' : ''));
       });
     }).catch(errore);
   }
