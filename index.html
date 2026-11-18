@@ -367,12 +367,25 @@ kbd {
               <option value="lv">Efficienza LV</option>
             </select>
           </div>
+          <div class="pbi-row" id="pbi-sfondo-riga">
+            <span class="flabel">Sfondo grafico LV</span>
+            <input type="file" id="pbi-sfondo-file" accept="image/png,image/jpeg,image/webp" hidden>
+            <button type="button" class="btn" id="pbi-sfondo-carica">Carica immagine</button>
+            <button type="button" class="btn" id="pbi-sfondo-togli" hidden>Togli</button>
+            <span class="hint" id="pbi-sfondo-stato">Nessuna immagine</span>
+          </div>
+          <div class="pbi-row" id="pbi-sfondo-regola" hidden>
+            <label class="flabel" for="pbi-sfondo-opacita">Opacità</label>
+            <input type="range" id="pbi-sfondo-opacita" min="10" max="100" step="5" value="100">
+            <label class="flabel" for="pbi-sfondo-misura">Grandezza</label>
+            <input type="range" id="pbi-sfondo-misura" min="40" max="130" step="5" value="100">
+          </div>
           <div class="pbi-row">
             <label class="flabel" for="pbi-box">Riquadro</label>
             <select id="pbi-box"></select>
             <button type="button" class="btn primary" id="pbi-compila" disabled>Compila da Power BI</button>
           </div>
-          <p class="hint">«Compila» ridisegna nel riquadro scelto la pagina di Power BI scelta, con i valori del giorno. Per «Efficienza LV» il periodo sono gli otto giorni che finiscono nel giorno scelto.</p>
+          <p class="hint">«Compila» ridisegna nel riquadro scelto la pagina di Power BI scelta, con i valori del giorno. Per «Efficienza LV» il periodo sono gli otto giorni che finiscono nel giorno scelto. «Sfondo grafico LV» è l'immagine che nel report sta dietro al grafico «Trend Efficienza»: carica una volta lo stesso file usato in Power BI, poi ricompila per vederla.</p>
           <div class="pbi-ris" id="pbi-ris" role="status" aria-live="polite" hidden></div>
           <p class="hint">L'accesso è il tuo account Microsoft: nella pagina non viene salvata nessuna password. Si apre in una finestrella, quindi gli screenshot già incollati restano al loro posto.</p>
           <details>
@@ -1260,6 +1273,34 @@ kbd {
   if (!pbiTok || typeof pbiTok.access !== 'string') pbiTok = null;
 
   function pbiSalva() { if (AUTO) return; try { localStorage.setItem(PBI_KEY, JSON.stringify(pbi)); } catch (e) {} }
+
+  // Immagine di sfondo del grafico «Trend Efficienza» (pagina Efficienza LV): la carica l'utente, DiMail la mette dietro alle linee.
+  var PBI_SFONDO_KEY = 'dimail-pbi-sfondo-lv', PBI_SFONDO_MAX = 1400, PBI_SFONDO_LIMITE = 1500000;
+  var pbiSfondo = { dati: '', opacita: 100, misura: 100 }, pbiSfondoImg = null, pbiSfondoAttesa = Promise.resolve(null);
+  function pbiSfondoValido(o) {
+    return !!o && typeof o.dati === 'string' && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+\/=]+$/.test(o.dati) && o.dati.length <= PBI_SFONDO_LIMITE;
+  }
+  function pbiSfondoNumero(v, min, max) { v = Math.round(Number(v)); return isFinite(v) ? Math.max(min, Math.min(max, v)) : 100; }
+  // Prende le impostazioni (dalla memoria del browser o dal Worker) e prepara l'immagine; la promessa finisce quando è pronta.
+  function pbiSfondoImposta(o) {
+    if (!pbiSfondoValido(o)) { pbiSfondo = { dati: '', opacita: 100, misura: 100 }; pbiSfondoImg = null; pbiSfondoAttesa = Promise.resolve(null); return pbiSfondoAttesa; }
+    pbiSfondo = { dati: o.dati, opacita: pbiSfondoNumero(o.opacita, 10, 100), misura: pbiSfondoNumero(o.misura, 40, 130) };
+    pbiSfondoAttesa = new Promise(function (fatto) {
+      var im = new Image();
+      im.onload = function () { pbiSfondoImg = im.naturalWidth && im.naturalHeight ? im : null; fatto(pbiSfondoImg); };
+      im.onerror = function () { pbiSfondoImg = null; fatto(null); };
+      im.src = o.dati;
+    });
+    return pbiSfondoAttesa;
+  }
+  function pbiSfondoSalva() {
+    if (AUTO) return true;
+    try {
+      if (pbiSfondo.dati) localStorage.setItem(PBI_SFONDO_KEY, JSON.stringify(pbiSfondo)); else localStorage.removeItem(PBI_SFONDO_KEY);
+      return true;
+    } catch (e) { return false; }
+  }
+  if (!AUTO) { try { pbiSfondoImposta(JSON.parse(localStorage.getItem(PBI_SFONDO_KEY) || 'null')); } catch (e) {} }
   function pbiSalvaTok() {
     if (AUTO) return;
     try { if (pbiTok) sessionStorage.setItem(PBI_TOK, JSON.stringify(pbiTok)); else sessionStorage.removeItem(PBI_TOK); } catch (e) {}
@@ -1904,6 +1945,17 @@ kbd {
       testo(v[0], lx + 18, 668, '22px', BIANCO, 'left');
       lx += larghezze[i] + 12;
     });
+    // immagine di sfondo caricata dall'utente: dietro alle linee, centrata nella fascia del grafico
+    if (pbiSfondoImg) {
+      var AX = 236, AY = 758, AW = 1434, AH = 160, fm = pbiSfondo.misura / 100;
+      var fs = Math.min(AW / pbiSfondoImg.naturalWidth, AH / pbiSfondoImg.naturalHeight) * fm;
+      var iw = pbiSfondoImg.naturalWidth * fs, ih = pbiSfondoImg.naturalHeight * fs;
+      x.save();
+      rr(8, 594, 1862, 459, 9); x.clip();
+      x.globalAlpha = pbiSfondo.opacita / 100;
+      try { x.drawImage(pbiSfondoImg, AX + (AW - iw) / 2, AY + (AH - ih) / 2, iw, ih); } catch (e) {}
+      x.restore();
+    }
     var punti = d.trend, np = punti.length;
     if (np) {
       var PX0 = 28, PX1 = 1880, YT = 695, YB = 985;
@@ -1976,7 +2028,7 @@ kbd {
     pbiOccupato = true; pbiDisegna();
     pbiEsito('info', 'Leggo i valori da Power BI…');
     var pag = pbiPagina();
-    pag.leggi(giorno).then(function (d) {
+    pag.leggi(giorno).then(function (d) { return pbiSfondoAttesa.then(function () { return d; }); }).then(function (d) {
       if (pag.vuoto(d)) {
         pbiEsito('info', 'Per il ' + giorno.testo + ' il modello non ha valori: il riquadro non è stato toccato. Prova un altro giorno.');
         return;
@@ -2011,6 +2063,50 @@ kbd {
     });
     $('#pbi-prova').addEventListener('click', pbiProva);
     $('#pbi-compila').addEventListener('click', pbiCompila);
+    function sfondoMostra() {
+      var c = !!pbiSfondo.dati;
+      $('#pbi-sfondo-togli').hidden = !c; $('#pbi-sfondo-regola').hidden = !c;
+      $('#pbi-sfondo-carica').textContent = c ? 'Cambia immagine' : 'Carica immagine';
+      $('#pbi-sfondo-stato').textContent = c ? 'Immagine caricata (' + Math.round(pbiSfondo.dati.length * 0.75 / 1024) + ' KB)' : 'Nessuna immagine';
+      $('#pbi-sfondo-opacita').value = pbiSfondo.opacita; $('#pbi-sfondo-misura').value = pbiSfondo.misura;
+    }
+    sfondoMostra();
+    $('#pbi-sfondo-carica').addEventListener('click', function () { $('#pbi-sfondo-file').click(); });
+    $('#pbi-sfondo-file').addEventListener('change', function (e) {
+      var f = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      if (!/^image\/(png|jpeg|webp)$/.test(f.type)) { toast('Serve un\'immagine PNG, JPG o WebP.'); return; }
+      var lettore = new FileReader();
+      lettore.onerror = function () { toast('Non riesco a leggere il file.'); };
+      lettore.onload = function () {
+        var im = new Image();
+        im.onerror = function () { toast('Il file non è un\'immagine leggibile.'); };
+        im.onload = function () {
+          // rimpicciolita alla larghezza che serve e salvata come PNG, così la trasparenza resta
+          var f0 = Math.min(1, PBI_SFONDO_MAX / im.naturalWidth), cv = document.createElement('canvas');
+          cv.width = Math.max(1, Math.round(im.naturalWidth * f0)); cv.height = Math.max(1, Math.round(im.naturalHeight * f0));
+          cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+          var dati = cv.toDataURL('image/png');
+          if (dati.length > PBI_SFONDO_LIMITE) { toast('Immagine troppo pesante: usane una più semplice o più piccola.'); return; }
+          pbiSfondoImposta({ dati: dati, opacita: pbiSfondo.opacita, misura: pbiSfondo.misura }).then(function (ok) {
+            if (!ok) { toast('Il file non è un\'immagine leggibile.'); pbiSfondoImposta(null); }
+            else if (!pbiSfondoSalva()) toast('Immagine caricata, ma il browser non ha spazio per ricordarla.');
+            else toast('Immagine di sfondo caricata: ricompila il riquadro per vederla.');
+            sfondoMostra();
+          });
+        };
+        im.src = lettore.result;
+      };
+      lettore.readAsDataURL(f);
+    });
+    $('#pbi-sfondo-togli').addEventListener('click', function () { pbiSfondoImposta(null); pbiSfondoSalva(); sfondoMostra(); toast('Immagine di sfondo tolta.'); });
+    ['opacita', 'misura'].forEach(function (k) {
+      $('#pbi-sfondo-' + k).addEventListener('change', function (e) {
+        pbiSfondo[k] = pbiSfondoNumero(e.target.value, k === 'opacita' ? 10 : 40, k === 'opacita' ? 100 : 130);
+        pbiSfondoSalva(); toast('Ricompila il riquadro per vedere la modifica.');
+      });
+    });
     if (PBI_PAGINE[pbi.pagina]) $('#pbi-pagina').value = pbi.pagina;
     $('#pbi-pagina').addEventListener('change', function (e) { pbi.pagina = e.target.value; pbiSalva(); });
     pbiDisegna();
@@ -2076,7 +2172,7 @@ kbd {
     var prima = state; state = m;
     var dest = indirizzi();
     state = prima;
-    var testo = JSON.stringify({ dimail: 1, creato: new Date().toISOString(), modello: m, pbi: { tenant: pbi.tenant, group: pbi.group, report: pbi.report } });
+    var testo = JSON.stringify({ dimail: 1, creato: new Date().toISOString(), modello: m, pbi: pbiSfondo.dati ? { tenant: pbi.tenant, group: pbi.group, report: pbi.report, sfondoLV: pbiSfondo } : { tenant: pbi.tenant, group: pbi.group, report: pbi.report } });
     var fatto = 'Impostazioni copiate: ' + (quanti === 1 ? '1 riquadro automatico' : quanti + ' riquadri automatici') + ', ' +
       (dest.ok.length === 1 ? '1 destinatario' : dest.ok.length + ' destinatari') + '. Incollale nella pagina del Worker.' +
       (dest.ok.length ? '' : ' Attenzione: la lista mail è vuota.');
@@ -2101,6 +2197,26 @@ kbd {
     var cfg = null, riepilogo = { pagine: [] };
     function chiama(percorso, opz, extra) { return fetch(AUTO.w + percorso + '?t=' + encodeURIComponent(AUTO.t) + (extra || ''), opz); }
     // La foto della griglia di NEXUS, fatta dal Worker con un secondo browser: { src, ratio }
+    // Quanta parte della foto è colorata (da 0 a 1). Nella griglia di NEXUS le linee in attività hanno bordi, indicatori e
+    // numeri a colori; quelle ferme («Linea non attiva») sono tutte in grigio. Una griglia senza colore è una giornata senza dati.
+    function quantoColore(im) {
+      try {
+        var cv = document.createElement('canvas');
+        cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+        var cx = cv.getContext('2d');
+        cx.drawImage(im, 0, 0);
+        var px = cx.getImageData(0, 0, cv.width, cv.height).data, visti = 0, colorati = 0;
+        for (var yy = 0; yy < cv.height; yy += 2) {
+          for (var xx = 0, i = yy * cv.width * 4; xx < cv.width; xx += 2, i += 8) {
+            var r = px[i], g = px[i + 1], b = px[i + 2];
+            visti++;
+            if (Math.max(r, g, b) - Math.min(r, g, b) > 60) colorati++;
+          }
+        }
+        return visti ? colorati / visti : 1;
+      } catch (e) { return 1; }   // se non si riesce a guardare la foto, non si blocca la mail per questo
+    }
+    var NEXUS_COLORE_MIN = 0.001;   // sotto l'uno per mille la griglia è tutta grigia: una sola linea attiva ne porta molto di più
     function fotoNexus() {
       return chiama('/auto/schermata', undefined, '&fonte=nexus').then(function (r) {
         if (!r.ok || !/^image\//.test(r.headers.get('Content-Type') || '')) {
@@ -2115,7 +2231,7 @@ kbd {
             var im = new Image();
             im.onload = function () {
               if (!im.naturalWidth || !im.naturalHeight) { ko(new Error('La foto di NEXUS è vuota.')); return; }
-              ok({ src: String(fr.result), ratio: im.naturalHeight / im.naturalWidth });
+              ok({ src: String(fr.result), ratio: im.naturalHeight / im.naturalWidth, colore: quantoColore(im) });
             };
             im.onerror = function () { ko(new Error('La foto di NEXUS non è un\'immagine valida.')); };
             im.src = String(fr.result);
@@ -2184,6 +2300,7 @@ kbd {
       imgsAll.eff = {}; imgs = imgsAll.eff;
       if (cfg.imp.pbi) ['tenant', 'group', 'report'].forEach(function (k) { if (GUID.test(String(cfg.imp.pbi[k] || '').trim())) pbi[k] = String(cfg.imp.pbi[k]).trim(); });
       pbi.dataset = ''; pbi.nomeReport = '';
+      pbiSfondoImposta(cfg.imp.pbi ? cfg.imp.pbi.sfondoLV : null);
       pbiTok = { access: String(cfg.token || ''), refresh: '', scade: Date.now() + 40 * 60000, utente: '' };
       if (!pbiTok.access) throw new Error('Il Worker non ha consegnato l\'accesso a Power BI.');
       var giorno = { a: Number(g[1]), m: Number(g[2]), g: Number(g[3]), testo: g[3] + '/' + g[2] + '/' + g[1] };
@@ -2197,7 +2314,7 @@ kbd {
 
       // se richiesto, la mail parte solo se il modello è stato aggiornato oggi
       var controllo = (cfg.soloAggiornatoOggi && chiaviPbi.length) ? pbiAggiornamento() : Promise.resolve(null);
-      return controllo.then(function (agg) {
+      var pbiFatto = controllo.then(function (agg) {
         if (cfg.soloAggiornatoOggi && agg && giornoRoma(agg) && giornoRoma(agg) !== cfg.giorno) {
           throw new Error('Il modello di Power BI non è stato aggiornato oggi (ultimo aggiornamento ' + pbiDataOra(agg).join(' ') + '): mail non inviata.');
         }
@@ -2213,16 +2330,26 @@ kbd {
             riepilogo.pagine.push(PBI_PAGINE[id].nome);
           });
         });
-        return coda.then(function () {
+        return coda.then(function () { return pbiSfondoAttesa; }).then(function () {
           chiaviPbi.forEach(function (k) { imgsAll.eff[k] = PBI_PAGINE[state.auto[k]].immagine(letti[state.auto[k]]); });
-          return attesaNexus;
-        }).then(function (foto) {
+        });
+      });
+      // Power BI e NEXUS vanno avanti insieme; alla fine si guarda prima NEXUS: se non ha dati la mail non parte, qualunque cosa dica Power BI
+      var esitoPbi = pbiFatto.then(function () { return null; }, function (e) { return e; });
+      return attesaNexus.then(function (foto) {
+        if (chiaviNexus.length && foto && foto.colore < NEXUS_COLORE_MIN) {
+          throw new Error('Su NEXUS non ci sono dati per il ' + giorno.testo + ' (nessuna linea attiva nella griglia): mail non inviata.');
+        }
+        return esitoPbi.then(function (e) {
+          if (e) throw e;
           if (chiaviNexus.length) {
-            chiaviNexus.forEach(function (k) { imgsAll.eff[k] = foto; });
+            chiaviNexus.forEach(function (k) { imgsAll.eff[k] = { src: foto.src, ratio: foto.ratio }; });
             riepilogo.pagine.push('NEXUS');
           }
           return chiaviAuto;
         });
+      }, function (eNexus) {
+        return esitoPbi.then(function (e) { throw e || eNexus; });
       });
     }).then(function (chiaviAuto) {
       // nella mail automatica entrano solo le sezioni con un riquadro compilato; niente righe «Note» da riempire a mano
