@@ -654,7 +654,8 @@ kbd {
     if (forzata) o = new Date(Number(forzata[1]), Number(forzata[2]) - 1, Number(forzata[3]));
     function due(n) { return ('0' + n).slice(-2); }
     var breve = due(o.getDate()) + '/' + due(o.getMonth() + 1);
-    return String(s || '').replace(/\{data_completa\}/gi, breve + '/' + o.getFullYear()).replace(/\{data\}/gi, breve);
+    // tollera maiuscole, spazi e trattini: {data}, { Data }, {data completa}, {data-completa}…
+    return String(s || '').replace(/\{\s*data[\s_-]*completa\s*\}/gi, breve + '/' + o.getFullYear()).replace(/\{\s*data\s*\}/gi, breve);
   }
 
   var FONT = 'Tahoma,Verdana,Geneva,sans-serif';
@@ -713,7 +714,7 @@ kbd {
   function buildEmail(mode) {
     var ts = sz('titoli');
     var sez = state.sezioni.map(function (s, i) {
-      var titolo = (state.numeri ? (i + 1) + '. ' : '') + esc(s.titolo.trim() || 'Titolo sezione');
+      var titolo = (state.numeri ? (i + 1) + '. ' : '') + esc(d(s.titolo).trim() || 'Titolo sezione');
       var nota = s.note
         ? '<tr><td style="padding:10px 0 0 0;font-family:' + FONT + ';font-size:14px;line-height:1.5;color:#4A443D;"><strong style="color:#26221E;">Note:</strong> scrivi qui un commento</td></tr>'
         : '';
@@ -722,13 +723,13 @@ kbd {
       var bl = blocchi(s);
       var corpo = bl
         ? bl.map(function (b, j) {
-            var t = String(b.testo || '').trim();
+            var t = d(b.testo).trim();
             var h = t ? esc(t) : (mode === 'preview' ? '<span class="hint-sub">Sottotitolo ' + (j + 1) + ': scrivilo nel campo a sinistra</span>' : '');
             var sopra = j ? 20 : 12;
             return (h ? '<tr><td style="padding:' + sopra + 'px 0 0 0;' + stileSotto + '">' + h + '</td></tr>' : '') +
-              '<tr><td style="padding:' + (h ? 6 : sopra) + 'px 0 0 0;"><table ' + T + '">' + boxRow(s.id + '-' + b.id, t || s.titolo.trim(), mode) + '</table></td></tr>';
+              '<tr><td style="padding:' + (h ? 6 : sopra) + 'px 0 0 0;"><table ' + T + '">' + boxRow(s.id + '-' + b.id, t || d(s.titolo).trim(), mode) + '</table></td></tr>';
           }).join('')
-        : '<tr><td style="padding:12px 0 0 0;"><table ' + T + '">' + boxRow(String(s.id), s.titolo.trim(), mode) + '</table></td></tr>';
+        : '<tr><td style="padding:12px 0 0 0;"><table ' + T + '">' + boxRow(String(s.id), d(s.titolo).trim(), mode) + '</table></td></tr>';
       return '<tr><td style="padding:26px 0 0 0;">' +
         '<table ' + T + '">' +
           '<tr><td style="padding:0 0 6px 0;border-bottom:1px solid #E7E0D3;' + stileTitolo + '">' + titolo + '</td></tr>' +
@@ -742,7 +743,7 @@ kbd {
       ? '<tr><td style="padding:0;font-family:' + FONT + ';font-size:' + sz('aperturaSize') + 'px;line-height:1.5;color:' + col('aperturaColor') + ';">' + fmt(d(state.apertura)) + '</td></tr>'
       : '';
     var chiusura = String(state.chiusura || '').trim()
-      ? '<tr><td style="padding:28px 0 0 0;font-family:' + FONT + ';font-size:' + sz('chiusuraSize') + 'px;line-height:1.5;color:' + col('chiusuraColor') + ';">' + esc(state.chiusura.trim()) + '</td></tr>'
+      ? '<tr><td style="padding:28px 0 0 0;font-family:' + FONT + ';font-size:' + sz('chiusuraSize') + 'px;line-height:1.5;color:' + col('chiusuraColor') + ';">' + esc(d(state.chiusura).trim()) + '</td></tr>'
       : '';
     return '<table role="presentation" width="' + BOX_W + '" cellpadding="0" cellspacing="0" border="0" style="width:' + BOX_W + 'px;border-collapse:collapse;font-family:' + FONT + ';-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">' +
       apertura + sez + chiusura +
@@ -753,12 +754,12 @@ kbd {
     var out = [];
     if (state.apertura.trim()) { out.push(d(state.apertura).replace(/\*\*/g, '')); out.push(''); }
     state.sezioni.forEach(function (s, i) {
-      out.push((state.numeri ? (i + 1) + '. ' : '') + (s.titolo.trim() || 'Titolo sezione'));
-      (blocchi(s) || []).forEach(function (b) { if (String(b.testo || '').trim()) out.push(b.testo.trim()); });
+      out.push((state.numeri ? (i + 1) + '. ' : '') + (d(s.titolo).trim() || 'Titolo sezione'));
+      (blocchi(s) || []).forEach(function (b) { if (String(b.testo || '').trim()) out.push(d(b.testo).trim()); });
       if (s.note) out.push('Note: ');
       out.push('');
     });
-    if (String(state.chiusura || '').trim()) out.push(state.chiusura.trim());
+    if (String(state.chiusura || '').trim()) out.push(d(state.chiusura).trim());
     return out.join('\n').trim();
   }
 
