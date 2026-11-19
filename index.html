@@ -253,6 +253,13 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .btn:disabled { opacity: .45; cursor: default; }
 
 .bar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+/* chi gestisce la mail: e-mail e invio al Worker, sotto i pulsanti */
+.bar-gest { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; border-top: 1px solid var(--line); padding-top: 10px; }
+.bar-gest[hidden] { display: none; }
+.bar-gest + .bar-gest { border-top: 0; padding-top: 0; }
+.bar-gest input[type="email"] { width: auto; flex: 0 1 300px; min-width: 200px; }
+.bar-gest input[type="text"] { width: 9em; }
+.bar-gest .hint { flex: 1 1 220px; margin: 0; }
 @media (max-width: 520px) { #mail { padding: 20px 18px; } }
 
 .howto { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 20px 28px; margin-top: 8px; }
@@ -479,31 +486,15 @@ kbd {
             <textarea id="auto-firma" rows="4" spellcheck="false" placeholder="Nome Cognome&#10;Ruolo&#10;Azienda · telefono"></textarea>
             <p class="hint">Va in fondo alla mail automatica, a capo come la scrivi; <code>**testo**</code> esce in grassetto. Nelle mail spedite dal Worker la firma di Gmail non viene aggiunta: va scritta qui.</p>
           </div>
-          <span class="big-label">GESTIONE DA DIMAIL</span>
-          <p class="hint">Per chi cura la mail senza entrare nella pagina del Worker: serve un'e-mail autorizzata da chi lo amministra. La prima volta da questo browser arriva un codice per e-mail; poi il browser resta riconosciuto per 30 giorni.</p>
           <div class="field">
             <label for="gest-worker">Indirizzo del Worker</label>
-            <input type="url" id="gest-worker" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="https://dimail-auto….workers.dev">
-          </div>
-          <div class="field">
-            <label for="gest-email">La tua e-mail</label>
-            <input type="email" id="gest-email" spellcheck="false" autocapitalize="off" autocomplete="email" placeholder="nome.cognome@dimargroup.com">
-          </div>
-          <div class="pbi-row" id="gest-codice-riga" hidden>
-            <label class="flabel" for="gest-codice">Codice ricevuto</label>
-            <input type="text" id="gest-codice" inputmode="numeric" maxlength="6" autocomplete="one-time-code" style="width:9em">
-            <button type="button" class="btn primary" id="gest-conferma">Conferma</button>
-            <button type="button" class="link" id="gest-rimanda">Rimanda il codice</button>
-          </div>
-          <p class="hint" id="gest-stato"></p>
-          <div class="pbi-row">
-            <button type="button" class="btn" id="auto-invia">Invia impostazioni al Worker</button>
-            <button type="button" class="btn" id="auto-carica">Carica dal Worker</button>
+            <input type="url" id="gest-worker" spellcheck="false" autocapitalize="off" autocomplete="off">
+            <p class="hint">Già scritto: cambialo solo se te lo dice chi amministra il Worker. Chi gestisce la mail scrive la sua e-mail sopra l'anteprima e preme «Invia impostazioni al Worker»: la prima volta da un browser gli arriva un codice per e-mail, poi quel browser resta riconosciuto per 30 giorni.</p>
           </div>
           <div class="pbi-row">
             <button type="button" class="btn primary" id="auto-copia">Copia impostazioni per il Worker</button>
           </div>
-          <p class="hint" id="auto-copia-spiega">Incollale nella pagina del Worker: sanno da sole di quale report sono. Vanno ricopiate ogni volta che cambi testi, sezioni, destinatari o queste scelte.</p>
+          <p class="hint">Per chi amministra il Worker: incollale nella sua pagina, sanno da sole di quale report sono. Vanno ricopiate ogni volta che cambi testi, sezioni, destinatari o queste scelte.</p>
         </div>
         <p class="hint" id="auto-altro" hidden>L'invio automatico riguarda REPORT EFFICIENZE, CHANEL-ORE SPEDITE e CHANEL-AGGIORNAMENTO CONSEGNE.</p>
       </fieldset>
@@ -516,9 +507,20 @@ kbd {
         <span class="lbl"><b id="p-nome"></b> · riquadri <span id="p-larg"></span> px<span id="p-zoom"></span></span>
         <div class="bar-actions">
           <button type="button" class="btn" id="svuota" disabled>Svuota riquadri</button>
-          <button type="button" class="btn" id="copy-dest" disabled>Copia destinatari</button>
           <button type="button" class="btn" id="sped-tutti" hidden title="Compila da Power BI tutti i riquadri della scheda, con il giorno scelto nel pannello Power BI">Compila tutti i riquadri</button>
           <button type="button" class="btn primary" id="copy-mail">Copia mail per Gmail</button>
+        </div>
+        <div class="bar-gest">
+          <label class="flabel" for="gest-email">La tua e-mail</label>
+          <input type="email" id="gest-email" spellcheck="false" autocapitalize="off" autocomplete="email" placeholder="nome.cognome@dimargroup.com">
+          <button type="button" class="btn" id="auto-invia">Invia impostazioni al Worker</button>
+          <span class="hint" id="gest-stato"></span>
+        </div>
+        <div class="bar-gest" id="gest-codice-riga" hidden>
+          <label class="flabel" for="gest-codice">Codice ricevuto</label>
+          <input type="text" id="gest-codice" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+          <button type="button" class="btn primary" id="gest-conferma">Conferma</button>
+          <button type="button" class="link" id="gest-rimanda">Rimanda il codice</button>
         </div>
       </div>
       <input type="file" id="f-file" accept="image/*" hidden>
@@ -920,7 +922,6 @@ kbd {
   function aggiornaDestinatari() {
     var r = indirizzi();
     $('#dest-info').textContent = (r.ok.length === 1 ? '1 indirizzo' : r.ok.length + ' indirizzi') + (r.ko.length ? ' · ' + r.ko.length + ' da controllare' : '');
-    $('#copy-dest').disabled = !r.ok.length;
   }
 
   // Schede dei report
@@ -1295,31 +1296,6 @@ kbd {
     if (ok) sel.removeAllRanges();
     return ok;
   }
-
-  $('#copy-dest').addEventListener('click', function () {
-    var r = indirizzi();
-    if (!r.ok.length) return;
-    var testo = r.ok.join(', ');
-    var fatto = (r.ok.length === 1 ? '1 destinatario copiato' : r.ok.length + ' destinatari copiati') + ' per «' + modello(attivo).nome + '». Incolla nel campo «A» di Gmail.' +
-      (r.ko.length ? ' ' + (r.ko.length === 1 ? '1 voce saltata: non è un indirizzo.' : r.ko.length + ' voci saltate: non sono indirizzi.') : '');
-    var fallback = function () {
-      var ta = document.createElement('textarea');
-      ta.value = testo; ta.setAttribute('readonly', '');
-      ta.style.cssText = 'position:fixed;left:-99999px;top:0;';
-      document.body.appendChild(ta); ta.select();
-      var ok = false;
-      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
-      document.body.removeChild(ta);
-      toast(ok ? fatto : 'La copia non è riuscita. Seleziona gli indirizzi nel campo «Lista mail» e premi Ctrl+C.');
-    };
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(testo).then(function () { toast(fatto); }, fallback);
-        return;
-      }
-    } catch (e) {}
-    fallback();
-  });
 
   $('#copy-mail').addEventListener('click', function () {
     var html = buildEmail('export');
@@ -3737,27 +3713,25 @@ kbd {
   var AUTO_SCHEDE = { eff: 1, ore: 1, chanel: 1 };
   // Gestione da DiMail: indirizzo del Worker, e-mail di chi gestisce e riconoscimento del browser (dopo il codice per e-mail).
   // Solo in questo browser, mai nelle impostazioni copiate.
-  var GEST_KEY = 'dimail-gestione-v1', gest = { worker: '', email: '', sessione: '', scade: '', di: '' };
-  if (!AUTO) { try { var gestLetta = JSON.parse(localStorage.getItem(GEST_KEY) || 'null'); if (gestLetta && typeof gestLetta === 'object') Object.keys(gest).forEach(function (k) { if (typeof gestLetta[k] === 'string') gest[k] = gestLetta[k]; }); } catch (e) {} }
+  // base: per ogni scheda, il «salvato» delle impostazioni del Worker da cui partono quelle di questo browser
+  var WORKER_PREDEFINITO = 'https://dimail-auto.devid-billi.workers.dev';
+  var GEST_KEY = 'dimail-gestione-v1', gest = { worker: '', email: '', sessione: '', scade: '', di: '', base: {} };
+  if (!AUTO) { try { var gestLetta = JSON.parse(localStorage.getItem(GEST_KEY) || 'null'); if (gestLetta && typeof gestLetta === 'object') { Object.keys(gest).forEach(function (k) { if (typeof gestLetta[k] === 'string') gest[k] = gestLetta[k]; }); if (gestLetta.base && typeof gestLetta.base === 'object') gest.base = gestLetta.base; } } catch (e) {} }
   function gestSalva() { if (AUTO) return; try { localStorage.setItem(GEST_KEY, JSON.stringify(gest)); } catch (e) {} }
-  function gestWorker() { var w = String(gest.worker || '').trim().replace(/\/+$/, ''); return /^https:\/\/[^\s\/?#]+$/i.test(w) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(w) ? w : ''; }
+  function gestWorker() { var w = (String(gest.worker || '').trim() || WORKER_PREDEFINITO).replace(/\/+$/, ''); return /^https:\/\/[^\s\/?#]+$/i.test(w) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(w) ? w : ''; }
   function gestEmail() { var e = String(gest.email || '').trim().toLowerCase(); return /^[^\s<>"'(),;@]+@[^\s<>"'(),;@]+\.[^\s<>"'(),;@.]+$/.test(e) ? e : ''; }
   function gestSessione() { return gest.sessione && gest.di === gestEmail() && Date.parse(gest.scade) > Date.now() ? gest.sessione : ''; }
   function gestDisegna() {
     var w = $('#gest-worker'), e = $('#gest-email');
-    if (document.activeElement !== w) w.value = gest.worker;
+    w.placeholder = WORKER_PREDEFINITO;
+    if (document.activeElement !== w) w.value = gest.worker || WORKER_PREDEFINITO;
     if (document.activeElement !== e) e.value = gest.email;
-    var pronta = !!(gestWorker() && gestEmail()), q = gestSessione() ? pbiDataOra(new Date(gest.scade)) : null;
-    $('#gest-stato').textContent = !String(gest.worker || '').trim() && !String(gest.email || '').trim() ? 'Chi amministra il Worker può lasciare vuoto e usare «Copia impostazioni per il Worker».'
-      : !gestWorker() ? 'L\'indirizzo del Worker non è valido: comincia con https:// (te lo dà chi lo amministra).'
-      : !gestEmail() ? 'Scrivi la tua e-mail.'
-      : q ? 'Browser riconosciuto per ' + gestEmail() + ' fino al ' + q[0] + '.'
+    var q = gestSessione() ? pbiDataOra(new Date(gest.scade)) : null;
+    $('#gest-stato').textContent = !String(gest.email || '').trim() ? 'Per chi gestisce questa mail: con la tua e-mail autorizzata le impostazioni vanno al Worker senza entrare nella sua pagina.'
+      : !gestEmail() ? 'Scrivi un\'e-mail valida.'
+      : !gestWorker() ? 'L\'indirizzo del Worker (riquadro «Invio automatico») non è valido.'
+      : q ? 'Browser riconosciuto fino al ' + q[0] + '.'
       : 'Al primo invio ti arriva un codice a ' + gestEmail() + '.';
-    $('#auto-invia').className = 'btn' + (pronta ? ' primary' : '');
-    $('#auto-copia').className = 'btn' + (pronta ? '' : ' primary');
-    $('#auto-copia-spiega').textContent = pronta
-      ? '«Invia impostazioni al Worker» le salva subito nel Worker: rimandale ogni volta che cambi temi, titoli, sottotitoli, testi o destinatari. «Carica dal Worker» riporta qui quelle salvate, per partire da lì.'
-      : 'Incollale nella pagina del Worker: sanno da sole di quale report sono. Vanno ricopiate ogni volta che cambi testi, sezioni, destinatari o queste scelte.';
   }
   // CHANEL-AGGIORNAMENTO CONSEGNE: i riquadri che si compilano sono quelli con la pagina scelta e i suoi filtri (sotto i sottotitoli)
   function spedAutoRiquadri(m) { return spedTemi(m).map(function (t) { return t.chiave; }).concat(spedRiquadriOre(m).map(function (r) { return r.chiave; })); }
@@ -3830,7 +3804,7 @@ kbd {
   $('#auto-mittente').addEventListener('input', function (e) { var m = autoModello(); if (m) { m.mittenteNome = e.target.value; save(); } });
   $('#auto-firma').addEventListener('input', function (e) { var m = autoModello(); if (m) { m.firma = e.target.value; save(); } });
   $('#auto-nexus').addEventListener('input', function (e) { store.modelli.eff.nexusUrl = e.target.value.trim(); save(); });
-  $('#gest-worker').addEventListener('input', function (e) { gest.worker = e.target.value.trim(); gestSalva(); gestDisegna(); });
+  $('#gest-worker').addEventListener('input', function (e) { var v = e.target.value.trim().replace(/\/+$/, ''); gest.worker = v === WORKER_PREDEFINITO ? '' : v; gestSalva(); gestDisegna(); });
   $('#gest-email').addEventListener('input', function (e) { gest.email = e.target.value.trim(); gestSalva(); gestDisegna(); });
   // Le impostazioni da mandare al Worker: { testo, nome, riassunto, avvisi }, oppure null (con l'avviso già mostrato)
   function autoEsportazione() {
@@ -3884,8 +3858,8 @@ kbd {
   });
   // Gestione da DiMail: ogni richiesta porta il riconoscimento del browser; se manca o è scaduto parte il codice per e-mail,
   // e dopo il codice giusto si rifà da sola l'azione chiesta.
-  function gestRichiesta(metodo, percorso, corpo) {
-    var h = {}, ses = gestSessione();
+  function gestRichiesta(metodo, percorso, corpo, extra) {
+    var h = Object.assign({}, extra || {}), ses = gestSessione();
     if (corpo !== undefined) h['Content-Type'] = 'application/json';
     if (ses) h['X-Dimail-Sessione'] = ses;
     return fetch(gestWorker() + percorso, { method: metodo, headers: h, body: corpo }).then(function (r) {
@@ -3895,7 +3869,7 @@ kbd {
   var gestDopo = null;
   function gestNonRiconosciuto(o) { return !!(o && o.stato === 401 && o.j && o.j.sessione === false); }
   function gestConAccesso(azione) {
-    if (!gestWorker()) { toast('Scrivi l\'indirizzo del Worker: te lo dà chi lo amministra.'); $('#gest-worker').focus(); return; }
+    if (!gestWorker()) { toast('L\'indirizzo del Worker (riquadro «Invio automatico») non è valido.'); $('#gest-worker').focus(); return; }
     if (!gestEmail()) { toast('Scrivi la tua e-mail.'); $('#gest-email').focus(); return; }
     if (!gestSessione()) { gestChiediCodice(azione); return; }
     azione().then(function (o) { if (gestNonRiconosciuto(o)) { gest.sessione = ''; gestSalva(); gestDisegna(); gestChiediCodice(azione); } });
@@ -3926,23 +3900,52 @@ kbd {
   }
   $('#gest-conferma').addEventListener('click', gestConferma);
   $('#gest-codice').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); gestConferma(); } });
-  $('#auto-invia').addEventListener('click', function () {
-    var x = autoEsportazione();
-    if (!x) return;
-    gestConAccesso(function () {
-      var b = $('#auto-invia');
-      b.disabled = true; b.textContent = 'Invio…';
-      var fine = function () { b.disabled = false; b.textContent = 'Invia impostazioni al Worker'; };
-      return gestRichiesta('POST', '/pubblica', x.testo).then(function (o) {
-        fine();
-        if (o.j && o.j.ok) toast('Impostazioni di ' + x.nome + ' salvate nel Worker: ' + x.riassunto + '.' + x.avvisi);
-        else if (!gestNonRiconosciuto(o)) toast((o.j && o.j.errore) || 'Il Worker ha risposto ' + o.stato + ': impostazioni non salvate.');
+  function gestData(iso) { var q = iso ? pbiDataOra(new Date(iso)) : null; return q ? q[0] + ' alle ' + String(q[1]).slice(0, 5) : ''; }
+  function gestCarica(qui, perche) {
+    return gestRichiesta('GET', '/pubblica/config?report=' + encodeURIComponent(qui)).then(function (o) {
+      if (o.j && o.j.ok && o.j.config && o.j.config.modello) {
+        gest.base[qui] = String(o.j.config.salvato || ''); gestSalva();
+        if (attivo === qui) gestApplica(o.j.config);
+        var chi = o.j.config.salvatoDa ? ' da ' + o.j.config.salvatoDa : '';
+        toast(perche === 'conflitto'
+          ? 'Nel frattempo le impostazioni di ' + o.j.nome + ' sono state cambiate' + chi + ' (' + gestData(o.j.config.salvato) + '): le ho riportate qui. Rifai le tue modifiche e premi di nuovo «Invia impostazioni al Worker».'
+          : 'Prima volta da questo browser: ho portato qui le impostazioni di ' + o.j.nome + ' così come sono nel Worker (del ' + gestData(o.j.config.salvato) + '). Fai le modifiche e premi di nuovo «Invia impostazioni al Worker».');
+      }
+      return o;
+    });
+  }
+  function gestManda(qui, x) {
+    var b = $('#auto-invia');
+    b.disabled = true; b.textContent = 'Invio…';
+    var fine = function () { b.disabled = false; b.textContent = 'Invia impostazioni al Worker'; };
+    return gestRichiesta('POST', '/pubblica', x.testo, { 'X-Dimail-Base': gest.base[qui] || '' }).then(function (o) {
+      fine();
+      if (o.j && o.j.ok) {
+        gest.base[qui] = String((o.j.config && o.j.config.salvato) || ''); gestSalva();
+        toast('Impostazioni di ' + x.nome + ' salvate nel Worker: ' + x.riassunto + '.' + x.avvisi);
         return o;
-      }, function () { fine(); toast('Il Worker non risponde: impostazioni non salvate. Controlla la connessione e riprova.'); return null; });
+      }
+      if (o.stato === 409 && o.j && o.j.conflitto) return gestCarica(qui, 'conflitto');
+      if (!gestNonRiconosciuto(o)) toast((o.j && o.j.errore) || 'Il Worker ha risposto ' + o.stato + ': impostazioni non salvate.');
+      return o;
+    }, function () { fine(); toast('Il Worker non risponde: impostazioni non salvate. Controlla la connessione e riprova.'); return null; });
+  }
+  $('#auto-invia').addEventListener('click', function () {
+    if (!AUTO_SCHEDE[attivo]) return;
+    var qui = attivo, x = null;
+    // prima volta da questo browser: le impostazioni di qui non contano, si riportano quelle del Worker
+    if (gest.base[qui]) { x = autoEsportazione(); if (!x) return; }
+    gestConAccesso(function () {
+      if (gest.base[qui]) { x = x || autoEsportazione(); return x ? gestManda(qui, x) : Promise.resolve(null); }
+      return gestCarica(qui, 'prima').then(function (o) {
+        // nel Worker non ce ne sono ancora: si mandano queste
+        if (o && o.stato === 404) { x = autoEsportazione(); return x ? gestManda(qui, x) : o; }
+        if (o && !(o.j && o.j.ok) && !gestNonRiconosciuto(o)) toast((o.j && o.j.errore) || 'Il Worker ha risposto ' + o.stato + '.');
+        return o;
+      }, function () { toast('Il Worker non risponde: controlla l\'indirizzo e la connessione.'); return null; });
     });
   });
   // Riporta in questa scheda le impostazioni salvate nel Worker (anche le immagini delle pagine): sostituiscono quelle di qui
-  var caricaPronto = 0;
   function gestApplica(c) {
     var qui = attivo, m = clone(c.modello);
     Object.keys(DEFS[qui]).forEach(function (k) { if (m[k] === undefined) m[k] = clone(DEFS[qui][k]); });
@@ -3966,27 +3969,6 @@ kbd {
     }
     fillFields(); renderSezioni(); update(); pbiPaginaPerScheda();
   }
-  $('#auto-carica').addEventListener('click', function () {
-    if (!AUTO_SCHEDE[attivo]) return;
-    if (Date.now() - caricaPronto > 6000) {
-      caricaPronto = Date.now();
-      toast('Premi di nuovo «Carica dal Worker»: le impostazioni di ' + modello(attivo).nome + ' in questa pagina verranno sostituite da quelle salvate nel Worker.');
-      return;
-    }
-    caricaPronto = 0;
-    var qui = attivo;
-    gestConAccesso(function () {
-      return gestRichiesta('GET', '/pubblica/config?report=' + encodeURIComponent(qui)).then(function (o) {
-        if (o.j && o.j.ok && o.j.config && o.j.config.modello) {
-          if (attivo !== qui) return o;
-          gestApplica(o.j.config);
-          toast('Impostazioni di ' + o.j.nome + ' caricate dal Worker' + (o.j.config.salvato ? ' (salvate il ' + pbiDataOra(new Date(o.j.config.salvato)).join(' ').slice(0, 16) + ')' : '') + '.');
-        } else if (!gestNonRiconosciuto(o)) toast((o.j && o.j.errore) || 'Il Worker ha risposto ' + o.stato + '.');
-        return o;
-      }, function () { toast('Il Worker non risponde: controlla l\'indirizzo e la connessione.'); return null; });
-    });
-  });
-
   // Il giro completo senza nessuno davanti: impostazioni dal Worker → lettura da Power BI → disegno → mail → consegna al Worker.
   function autoEsegui() {
     var cfg = null, riepilogo = { pagine: [] };
