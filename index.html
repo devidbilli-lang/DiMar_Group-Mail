@@ -280,7 +280,14 @@ kbd {
 .pbi-ris { margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); font-size: 14px; display: grid; gap: 6px; overflow-wrap: anywhere; }
 .pbi-ris.err { border-color: #C62828; }
 .pbi-ris.ok { border-color: #2E9B4F; }
-.pbi-ris dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 16px; margin: 0; }
+.pbi-ris dl { display: grid; grid-template-columns: fit-content(45%) minmax(0, 1fr); gap: 2px 16px; margin: 0; }
+/* voci lunghe (un riquadro per tema): nome sopra, valori sotto, così non escono dal pannello */
+.pbi-ris dl.pila { grid-template-columns: minmax(0, 1fr); gap: 0; }
+.pbi-ris dl.pila dd { margin-bottom: 8px; font-weight: 500; }
+.pbi-ris dl.pila dd:last-child { margin-bottom: 0; }
+/* nessuna riga del pannello può allargarlo: i testi vanno a capo, le tendine si stringono */
+#pbi .stack > *, #auto .stack > * { min-width: 0; }
+.pbi-row > select { flex: 1 1 180px; min-width: 0; max-width: 100%; }
 .pbi-ris dt { color: var(--muted); }
 .pbi-ris dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
 .pbi details summary { cursor: pointer; font-size: 13px; color: var(--muted); }
@@ -1473,6 +1480,7 @@ kbd {
     el.appendChild(p);
     if (valori && valori.length) {
       var dl = document.createElement('dl');
+      if (valori.some(function (v) { return String(v[0]).length > 30 || String(v[1]).length > 80; })) dl.className = 'pila';
       valori.forEach(function (v) {
         var dt = document.createElement('dt'), dd = document.createElement('dd');
         dt.textContent = v[0]; dd.textContent = v[1];
