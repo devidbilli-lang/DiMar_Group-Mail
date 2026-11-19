@@ -192,6 +192,12 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .sped-coll { grid-column: 2 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; color: var(--muted); }
 .sped-coll select { font: inherit; font-size: 13px; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; max-width: 100%; cursor: pointer; }
 .sped-desc { font-size: 13px; color: var(--muted); }
+.sped-pag { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; color: var(--muted); }
+.sez > .sped-pag, .sez > .sped-orecoll { grid-column: 2 / -1; }
+.sped-pag select { font: inherit; font-size: 13px; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; max-width: 100%; cursor: pointer; }
+.sped-orecoll { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.sped-orecoll label { display: flex; gap: 5px; align-items: center; color: var(--fg); cursor: pointer; }
+.sped-orecoll .hint { flex-basis: 100%; margin: 0; }
 .sez > .sped-desc { grid-column: 2 / -1; }
 .sped-desc summary { cursor: pointer; padding: 2px 0; overflow-wrap: anywhere; }
 .sped-desc summary b { color: var(--fg); font-weight: 600; }
@@ -432,7 +438,7 @@ kbd {
             <button type="button" class="btn primary" id="sped-tutti" disabled>Compila tutti i riquadri</button>
             <span class="hint" id="sped-stato"></span>
           </div>
-          <p class="hint">«Compila» ridisegna nel riquadro scelto la pagina di Power BI scelta, con i valori del giorno. «Ore Spedite Chanel» (scheda CHANEL-ORE SPEDITE) prende tutta la settimana del giorno scelto. «Performance Spedizioni Chanel» (scheda CHANEL-AGGIORNAMENTO CONSEGNE) prende la settimana del giorno scelto e, per ogni riquadro, la collezione della sezione e le descrizioni spuntate sotto il sottotitolo: «Compila tutti i riquadri» li fa tutti insieme. Per «Efficienza LV», «Efficienza Chanel», «Taglio DG», le due «Preparazione DG», «Tingitura» e «RMA» il periodo sono gli otto giorni che finiscono nel giorno scelto. «Immagine nel grafico» è l'immagine che nel report sta dietro al grafico: vale per la pagina scelta qui sopra, una per pagina. Scegli la pagina, carica lo stesso file usato in Power BI, poi ricompila per vederla. Per l'invio automatico, dopo aver caricato o cambiato un'immagine ricopia le impostazioni nella pagina del Worker.</p>
+          <p class="hint">«Compila» ridisegna nel riquadro scelto la pagina di Power BI scelta, con i valori del giorno. «Ore Spedite Chanel» (scheda CHANEL-ORE SPEDITE) prende tutta la settimana del giorno scelto. «Performance Spedizioni Chanel» (scheda CHANEL-AGGIORNAMENTO CONSEGNE) prende la settimana del giorno scelto e, per ogni riquadro, la collezione della sezione e le descrizioni spuntate sotto il sottotitolo: Nella stessa scheda un riquadro può usare invece «Ore Spedite Chanel», con le collezioni spuntate sotto il sottotitolo. «Compila tutti i riquadri» li fa tutti insieme. Per «Efficienza LV», «Efficienza Chanel», «Taglio DG», le due «Preparazione DG», «Tingitura» e «RMA» il periodo sono gli otto giorni che finiscono nel giorno scelto. «Immagine nel grafico» è l'immagine che nel report sta dietro al grafico: vale per la pagina scelta qui sopra, una per pagina. Scegli la pagina, carica lo stesso file usato in Power BI, poi ricompila per vederla. Per l'invio automatico, dopo aver caricato o cambiato un'immagine ricopia le impostazioni nella pagina del Worker.</p>
           <div class="pbi-ris" id="pbi-ris" role="status" aria-live="polite" hidden></div>
           <p class="hint">L'accesso è il tuo account Microsoft: nella pagina non viene salvata nessuna password. Si apre in una finestrella, quindi gli screenshot già incollati restano al loro posto.</p>
           <details>
@@ -1151,13 +1157,13 @@ kbd {
           '<label class="chk" for="sez-c-' + s.id + '"><input type="checkbox" id="sez-c-' + s.id + '"' + (s.sub ? ' checked' : '') + '> Sottotitolo</label>' +
           '<label class="chk" for="sez-n-' + s.id + '"><input type="checkbox" id="sez-n-' + s.id + '"' + (s.note ? ' checked' : '') + '> Note</label>' +
         '</div>' +
-        (sped ? spedHtmlColl(s) + (s.sub ? '' : spedHtmlDesc(s, s, 0)) : '') +
+        (sped ? spedHtmlColl(s) + (s.sub ? '' : spedHtmlRiquadro(s, s, 0)) : '') +
         (s.sub ? '<div class="sez-subs">' +
           s.subs.map(function (b, j) {
             return '<div class="sub-row">' +
               '<input type="text" class="sez-sub" id="sez-s-' + s.id + '-' + b.id + '" data-sub="' + b.id + '" aria-label="Sottotitolo ' + (j + 1) + ' della sezione ' + (i + 1) + '" placeholder="Sottotitolo ' + (j + 1) + '" value="' + esc(b.testo) + '">' +
               '<button type="button" class="icon" data-sub-del="' + b.id + '" aria-label="Elimina sottotitolo ' + (j + 1) + '"' + (s.subs.length === 1 ? ' disabled' : '') + '>×</button>' +
-            '</div>' + (sped ? spedHtmlDesc(s, b, b.id) : '');
+            '</div>' + (sped ? spedHtmlRiquadro(s, b, b.id) : '');
           }).join('') +
           '<button type="button" class="link" data-sub-add="1">+ Aggiungi sottotitolo</button>' +
         '</div>' : '');
@@ -2623,12 +2629,16 @@ kbd {
   var oreCollLette = null;   // { sett: 47, coll: ['27C', '27P'] } — l'ultima lettura, per mostrare le caselle
   if (!AUTO) { try { var oreLette = JSON.parse(localStorage.getItem(ORE_COLL_KEY) || 'null'); if (oreLette && Array.isArray(oreLette.coll)) oreCollLette = oreLette; } catch (e) {} }
   function oreModello() { return attivo === 'ore' ? state : store.modelli.ore; }
-  function oreCollTolte() {
-    var m = oreModello();
-    return m && Array.isArray(m.collTolte) ? m.collTolte.filter(function (c) { return typeof c === 'string' && c; }) : [];
+  function oreCollTolte(chiave) {
+    var v = null;
+    if (attivo === 'chanel') { var x = spedBlocco(state, chiave); v = x ? x.b.collTolte : null; }
+    else { var m = oreModello(); v = m ? m.collTolte : null; }
+    return Array.isArray(v) ? v.filter(function (c) { return typeof c === 'string' && c; }) : [];
   }
   function oreCollSalva(sett, coll) {
+    var cambiato = !oreCollLette || oreCollLette.sett !== sett || JSON.stringify(oreCollLette.coll) !== JSON.stringify(coll);
     oreCollLette = { sett: sett, coll: coll.slice() };
+    if (cambiato && attivo === 'chanel' && !AUTO && spedRiquadriOre(state).length) renderSezioni();
     if (!AUTO) { try { localStorage.setItem(ORE_COLL_KEY, JSON.stringify(oreCollLette)); } catch (e) {} }
     oreCollDisegna();
   }
@@ -2665,7 +2675,7 @@ kbd {
       }, 700);
     } else toast('Collezioni salvate: compila il riquadro per vedere le quantità.');
   });
-  function pbiLeggiOre(giorno) {
+  function pbiLeggiOre(giorno, chiave) {
     var P = PBI_ORE, Q = 'ore';
     function elenco(l) { return '{' + l.map(function (n) { return '"' + n.replace(/"/g, '""') + '"'; }).join(', ') + '}'; }
     function num(v) { return (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v); }
@@ -2694,7 +2704,7 @@ kbd {
       d.sett = sett !== null && sett >= 1 && sett <= 54 ? Math.round(sett) : settimanaIso(quando);
       d.settCalcolata = !(sett !== null && sett >= 1 && sett <= 54);
       settimanaLetta = { giorno: giorno.a + '-' + ('0' + giorno.m).slice(-2) + '-' + ('0' + giorno.g).slice(-2), sett: d.sett };   // per {settimana} nei testi della mail
-      var filtri = '__Anno, __Sett, __Area, __Coll, __OV, __DDT', togli = oreCollTolte();
+      var filtri = '__Anno, __Sett, __Area, __Coll, __OV, __DDT', togli = oreCollTolte(chiave);
       d.collTolte = togli.slice();
       var def = 'DEFINE\n'
         + "VAR __Anno = FILTER(KEEPFILTERS(VALUES('Calendario'[Date])), AND('Calendario'[Date] >= DATE(" + giorno.a + ", 1, 1), 'Calendario'[Date] < DATE(" + (giorno.a + 1) + ', 1, 1)))\n'
@@ -2961,7 +2971,7 @@ kbd {
       var coll = spedColl(s), bl = blocchi(s);
       (bl || [s]).forEach(function (b) {
         var desc = spedDescDi(b);
-        if (!coll || !desc.length) return;
+        if (spedPaginaDi(b) === 'ore' || !coll || !desc.length) return;
         v.push({ chiave: bl ? s.id + '-' + b.id : String(s.id), coll: coll, desc: desc, nome: d(s.titolo).trim() + (bl && String(b.testo || '').trim() ? ' · ' + d(b.testo).trim() : '') });
       });
     });
@@ -2995,6 +3005,7 @@ kbd {
 
   // Campi dell'editor: collezione sotto il titolo, descrizioni sotto ogni sottotitolo (o sotto il titolo, se non ne ha)
   function spedHtmlColl(s) {
+    if ((blocchi(s) || [s]).every(function (b) { return spedPaginaDi(b) === 'ore'; })) return '';
     var colls = spedCollezioni(), scelta = String(s.coll || ''), dalTitolo = spedCollDaTitolo(s.titolo);
     if (scelta && colls.indexOf(scelta) === -1) colls.unshift(scelta);
     return '<div class="sped-coll"><label for="sped-c-' + s.id + '">Collezione in Power BI</label>' +
@@ -3016,6 +3027,43 @@ kbd {
       return '<label' + (f ? ' class="fuori" title="Non c\'è più tra le descrizioni di questa collezione"' : '') + '><input type="checkbox" value="' + esc(x) + '"' + (desc.indexOf(x) !== -1 ? ' checked' : '') + '> ' + esc(x) + (f ? ' (non trovata)' : '') + '</label>';
     }).join('');
   }
+  // Ogni riquadro sceglie la sua pagina: Performance Spedizioni (con le descrizioni) o Ore Spedite (con le collezioni)
+  function spedPaginaDi(b) { return b && b.pagina === 'ore' ? 'ore' : 'sped'; }
+  function spedBlocco(m, chiave) {
+    var out = null;
+    (m && m.sezioni || []).forEach(function (s) {
+      var bl = blocchi(s);
+      if (bl) bl.forEach(function (b) { if (s.id + '-' + b.id === chiave) out = { s: s, b: b }; });
+      else if (String(s.id) === chiave) out = { s: s, b: s };
+    });
+    return out;
+  }
+  function spedRiquadriOre(m) {
+    var v = [];
+    (m && m.sezioni || []).forEach(function (s) {
+      var bl = blocchi(s);
+      (bl || [s]).forEach(function (b) {
+        if (spedPaginaDi(b) === 'ore') v.push({ chiave: bl ? s.id + '-' + b.id : String(s.id), nome: d(s.titolo).trim() + (bl && String(b.testo || '').trim() ? ' · ' + d(b.testo).trim() : '') });
+      });
+    });
+    return v;
+  }
+  function spedHtmlRiquadro(s, b, bid) {
+    var ore = spedPaginaDi(b) === 'ore';
+    return '<div class="sped-pag"><label for="sped-p-' + s.id + '-' + bid + '">Pagina</label><select id="sped-p-' + s.id + '-' + bid + '" data-sped-pag="' + bid + '">' +
+      '<option value="sped"' + (ore ? '' : ' selected') + '>Performance Spedizioni</option><option value="ore"' + (ore ? ' selected' : '') + '>Ore Spedite</option></select></div>' +
+      (ore ? spedHtmlOreColl(b, bid) : spedHtmlDesc(s, b, bid));
+  }
+  function spedHtmlOreColl(b, bid) {
+    var tolte = Array.isArray(b.collTolte) ? b.collTolte : [], tutte = (oreCollLette ? oreCollLette.coll : []).slice();
+    tolte.forEach(function (c) { if (tutte.indexOf(c) === -1) tutte.push(c); });
+    var contate = tutte.filter(function (c) { return tolte.indexOf(c) === -1; });
+    return '<div class="sped-orecoll" data-ore-coll="' + bid + '"><span>Collezioni</span>' + tutte.map(function (c) {
+      var on = tolte.indexOf(c) === -1;
+      return '<label><input type="checkbox" value="' + esc(c) + '"' + (on ? ' checked' : '') + (on && contate.length === 1 ? ' disabled title="Almeno una collezione resta contata"' : '') + '> ' + esc(c) + '</label>';
+    }).join('') +
+      '<p class="hint">' + (tutte.length ? 'Settimana ' + oreCollLette.sett + ': si contano le spuntate; quelle nuove si spuntano da sole.' : 'Le collezioni della settimana compaiono dopo «Leggi collezioni e descrizioni» o dopo aver compilato il riquadro: all\'inizio sono tutte spuntate.') + '</p></div>';
+  }
   function spedHtmlDesc(s, b, bid) {
     var coll = spedColl(s), desc = spedDescDi(b);
     return '<details class="sped-desc' + (desc.length ? '' : ' vuota') + '" data-sped-desc="' + bid + '"><summary>' + spedRiassunto(coll, desc) + '</summary>' +
@@ -3034,6 +3082,34 @@ kbd {
     });
   }
   function spedAgganci(li, s) {
+    function bloccoDa(el, attr) { var bid = Number(el.getAttribute(attr)); return bid ? s.subs.filter(function (x) { return x.id === bid; })[0] : s; }
+    li.querySelectorAll('[data-sped-pag]').forEach(function (ps) {
+      ps.addEventListener('change', function () {
+        var b = bloccoDa(ps, 'data-sped-pag');
+        if (!b) return;
+        b.pagina = ps.value === 'ore' ? 'ore' : 'sped';
+        renderSezioni();
+        update();
+        var f = document.getElementById(ps.id);
+        if (f) f.focus();
+      });
+    });
+    li.querySelectorAll('[data-ore-coll]').forEach(function (box) {
+      box.addEventListener('change', function (e) {
+        if (!e.target.matches('input[type="checkbox"]')) return;
+        var b = bloccoDa(box, 'data-ore-coll');
+        if (!b) return;
+        var tolte = [];
+        box.querySelectorAll('input[type="checkbox"]').forEach(function (c) { if (!c.checked) tolte.push(c.value); });
+        b.collTolte = tolte;
+        update();
+        // le caselle si ridisegnano (l'ultima spuntata non si può togliere) senza perdere il punto in cui si era
+        var nuovo = document.createElement('div');
+        nuovo.innerHTML = spedHtmlOreColl(b, Number(box.getAttribute('data-ore-coll')));
+        box.innerHTML = nuovo.firstChild.innerHTML;
+        spedRicompila(b === s ? String(s.id) : s.id + '-' + b.id);
+      });
+    });
     var sel = li.querySelector('[data-sped-coll]');
     if (sel) sel.addEventListener('change', function () {
       var prima = spedColl(s);
@@ -3376,11 +3452,12 @@ kbd {
   function pbiPaginaPerScheda() {
     var sel = $('#pbi-pagina');
     if (!sel) return;
-    Array.prototype.forEach.call(sel.options, function (o) { o.disabled = attivo === 'chanel' ? o.value !== 'sped' : o.value === 'sped'; });
+    Array.prototype.forEach.call(sel.options, function (o) { o.disabled = attivo === 'chanel' ? (o.value !== 'sped' && o.value !== 'ore') : o.value === 'sped'; });
     $('#sped-riga').hidden = attivo !== 'chanel';
     spedStato();
     oreCollDisegna();
-    var propria = { ore: 'ore', chanel: 'sped' }[attivo];
+    var bq = attivo === 'chanel' ? spedBlocco(state, $('#pbi-box').value) : null;
+    var propria = attivo === 'chanel' ? spedPaginaDi(bq && bq.b) : { ore: 'ore' }[attivo];
     var vuole = propria || (sel.value === 'ore' || sel.value === 'sped' ? (PBI_PAGINE[pbi.pagina] && pbi.pagina !== 'ore' && pbi.pagina !== 'sped' ? pbi.pagina : 'pannello') : sel.value);
     if (sel.value !== vuole) { sel.value = vuole; sel.dispatchEvent(new Event('change')); }
     pbiDisegna();
@@ -3397,6 +3474,11 @@ kbd {
     pbiOccupato = true; pbiDisegna();
     pbiEsito('info', 'Leggo i valori da Power BI…');
     var pag = pbiPagina();
+    if (attivo === 'chanel') {
+      var bq = spedBlocco(state, chiave), idp = spedPaginaDi(bq && bq.b);
+      pag = PBI_PAGINE[idp];
+      if ($('#pbi-pagina').value !== idp) { $('#pbi-pagina').value = idp; $('#pbi-pagina').dispatchEvent(new Event('change')); }
+    }
     pag.leggi(giorno, chiave).then(function (d) { return Promise.all([pbiSfondiPronti(), pbiCaratteri, pbiLogoAttesa]).then(function () { return d; }); }).then(function (d) {
       if (pag.vuoto(d)) {
         pbiEsito('info', 'Per il ' + giorno.testo + ' il modello non ha valori: il riquadro non è stato toccato. Prova un altro giorno.');
@@ -3417,37 +3499,69 @@ kbd {
     if (attivo !== 'chanel') return;
     var giorno = pbiGiorno();
     if (!giorno) return;
-    var temi = spedTemi(state);
-    if (!temi.length) { pbiEsito('err', 'Nessun riquadro ha collezione e descrizioni: sceglile a sinistra, sotto il titolo e i sottotitoli delle sezioni.'); return; }
-    var dest = imgsAll.chanel, pag = PBI_PAGINE.sped;
+    var temi = spedTemi(state), ore = spedRiquadriOre(state);
+    if (!temi.length && !ore.length) { pbiEsito('err', 'Nessun riquadro da compilare: a sinistra scegli la pagina di ogni riquadro e, per Performance Spedizioni, collezione e descrizioni.'); return; }
+    var dest = imgsAll.chanel, pag = PBI_PAGINE.sped, fatti = 0, vuoti = [], valori = [], sett = '';
     pbiOccupato = true; pbiDisegna();
     pbiEsito('info', 'Leggo i valori da Power BI…');
-    pag.leggi(giorno).then(function (d) { return Promise.all([pbiSfondiPronti(), pbiCaratteri, pbiLogoAttesa]).then(function () { return d; }); }).then(function (d) {
-      var fatti = 0, vuoti = [];
-      temi.forEach(function (t) {
-        if (spedTemaVuoto(d.temi[t.chiave])) vuoti.push(t.nome);
-        else { dest[t.chiave] = pag.immagine(d, t.chiave); fatti++; }
+    var pronti = function (x) { return Promise.all([pbiSfondiPronti(), pbiCaratteri, pbiLogoAttesa]).then(function () { return x; }); };
+    (temi.length ? pag.leggi(giorno).then(pronti) : Promise.resolve(null)).then(function (d) {
+      if (d) {
+        sett = d.sett;
+        temi.forEach(function (t) {
+          if (spedTemaVuoto(d.temi[t.chiave])) vuoti.push(t.nome);
+          else { dest[t.chiave] = pag.immagine(d, t.chiave); fatti++; }
+        });
+        valori = valori.concat(pag.elenco(d));
+      }
+      var coda = Promise.resolve();
+      ore.forEach(function (r) {
+        coda = coda.then(function () { return pbiLeggiOre(giorno, r.chiave).then(pronti); }).then(function (od) {
+          if (!sett) sett = 'S' + ('0' + od.sett).slice(-2);
+          var contate = od.coll.filter(function (c) { return od.collTolte.indexOf(c) === -1; });
+          valori.push([r.nome || r.chiave, 'Ore Spedite · settimana ' + od.sett + ' · collezioni ' + (contate.join(', ') || '--') + ' · Ore ' + pbiNumero(od.ore, 0) + ' · Qtà ' + pbiNumero(od.qta, 0) + ' · ' + od.righe.length + (od.righe.length === 1 ? ' articolo' : ' articoli')]);
+          if (pbiVuotoOre(od)) vuoti.push(r.nome);
+          else { dest[r.chiave] = pbiImmagineOre(od); fatti++; }
+        });
       });
+      return coda;
+    }).then(function () {
+      var tot = temi.length + ore.length;
       pbiOccupato = false;
       update();
-      pbiEsito(fatti ? 'ok' : 'info', (fatti === 1 ? 'Compilato 1 riquadro' : 'Compilati ' + fatti + ' riquadri') + ' su ' + temi.length + ', settimana ' + d.sett + '.' +
-        (vuoti.length ? ' Senza valori, lasciati com\'erano: ' + vuoti.join('; ') + '.' : ''), pag.elenco(d));
+      pbiEsito(fatti ? 'ok' : 'info', (fatti === 1 ? 'Compilato 1 riquadro' : 'Compilati ' + fatti + ' riquadri') + ' su ' + tot + ', settimana ' + sett + '.' +
+        (vuoti.length ? ' Senza valori, lasciati com\'erano: ' + vuoti.join('; ') + '.' : ''), valori);
       if (fatti) toast('Riquadri compilati da Power BI.');
     }, function (e) {
       pbiEsito('err', e.message);
     }).then(function () { pbiOccupato = false; pbiDisegna(); });
+  }
+  var spedRifai = null;
+  function spedRicompila(chiave) {
+    clearTimeout(spedRifai);
+    if (!pbiTok || !imgsAll.chanel[chiave]) { toast('Collezioni salvate: compila il riquadro per vedere ore e quantità.'); return; }
+    spedRifai = setTimeout(function () {
+      if (pbiOccupato || attivo !== 'chanel' || chiavi(state).indexOf(chiave) === -1) return;
+      $('#pbi-box').value = chiave;
+      pbiCompila();
+    }, 700);
   }
   function spedLeggiElenco() {
     var giorno = pbiGiorno();
     if (!giorno) return;
     pbiOccupato = true; pbiDisegna();
     pbiEsito('info', 'Leggo collezioni e descrizioni da Power BI…');
+    var oreR = spedRiquadriOre(state), notaOre = '';
     pbiLeggiSped(giorno, '', true).then(function (d) {
+      if (!oreR.length) return d;
+      return pbiLeggiOre(giorno, oreR[0].chiave).then(function (od) { notaOre = ' Collezioni della settimana per Ore Spedite: ' + (od.coll.join(', ') || 'nessuna') + '.'; return d; },
+        function (e) { notaOre = ' Le collezioni di Ore Spedite non si sono lette: ' + e.message; return d; });
+    }).then(function (d) {
       if (attivo === 'chanel') renderSezioni();
       var colls = spedCollezioni();
       pbiEsito(colls.length ? 'ok' : 'info', colls.length
-        ? 'Lette ' + colls.length + ' collezioni e ' + d.coppie.length + ' descrizioni (settimana ' + d.sett + '). Ora, a sinistra, scegli la collezione di ogni sezione e spunta le descrizioni di ogni riquadro.'
-        : 'Il modello non ha collezioni per la settimana ' + d.sett + '.');
+        ? 'Lette ' + colls.length + ' collezioni e ' + d.coppie.length + ' descrizioni (settimana ' + d.sett + '). Ora, a sinistra, scegli la collezione di ogni sezione e spunta le descrizioni di ogni riquadro.' + notaOre
+        : 'Il modello non ha collezioni per la settimana ' + d.sett + '.' + notaOre);
     }, function (e) {
       pbiEsito('err', e.message);
     }).then(function () { pbiOccupato = false; pbiDisegna(); });
@@ -3498,6 +3612,8 @@ kbd {
     $('#pbi-prova').addEventListener('click', pbiProva);
     $('#pbi-compila').addEventListener('click', pbiCompila);
     $('#sped-tutti').addEventListener('click', spedCompilaTutti);
+    // nella scheda CONSEGNE la pagina segue il riquadro scelto (serve anche per caricare la sua immagine)
+    $('#pbi-box').addEventListener('change', function () { if (attivo === 'chanel') pbiPaginaPerScheda(); });
     $('#sped-leggi').addEventListener('click', spedLeggiElenco);
     // L'immagine nel grafico vale per la pagina scelta qui sopra: cambiando pagina i comandi mostrano la sua.
     function sfondoPagina() { return $('#pbi-pagina').value; }
