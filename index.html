@@ -339,7 +339,7 @@ kbd {
               <div class="stile" data-size="aperturaSize" data-color="aperturaColor" data-nome="apertura"></div>
             </div>
             <textarea id="f-apertura" rows="5"></textarea>
-            <p class="hint">Metti il testo tra **doppi asterischi** per il grassetto. Scrivi <code>{data}</code> dove vuoi la data di oggi (es. 17/11): si aggiorna da sola ogni giorno. <code>{data_completa}</code> aggiunge l'anno. <code>{settimana}</code> diventa la settimana di oggi (es. S47). In CHANEL-AGGIORNAMENTO CONSEGNE <code>{somma}</code> diventa la somma dei pezzi spediti nella settimana del giorno scelto (per data di spedizione, come in «Ore Spedite») dai riquadri Performance Spedizioni compilati.</p>
+            <p class="hint">Metti il testo tra **doppi asterischi** per il grassetto. Scrivi <code>{data}</code> dove vuoi la data di oggi (es. 17/11): si aggiorna da sola ogni giorno. <code>{data_completa}</code> aggiunge l'anno. <code>{settimana}</code> diventa la settimana di oggi (es. S47). In CHANEL-AGGIORNAMENTO CONSEGNE <code>{somma}</code> diventa la Qtà Spedita della pagina Ore Spedite (il numero verde): quella del riquadro Ore Spedite della mail, con le sue collezioni; se la mail non ne ha, quella di tutte le collezioni della settimana, letta da «Compila tutti i riquadri».</p>
           </div>
         </div>
       </fieldset>
@@ -2978,20 +2978,19 @@ kbd {
     return v;
   }
   function spedModello() { return attivo === 'chanel' ? state : store.modelli.chanel; }
-  // Pezzi spediti di ogni riquadro disegnato da questa pagina: { chiave: { sped, img } }. Contano solo i riquadri che hanno
-  // ancora quell'immagine (uno screenshot incollato sopra, o un riquadro tolto, non entra nella somma).
-  var spedPezzi = {};
+  // {somma} = Qtà Spedita della pagina Ore Spedite (il numero verde in alto). Vale quella del primo riquadro Ore Spedite della
+  // mail, se ha ancora l'immagine disegnata da DiMail; se la mail non ha riquadri Ore Spedite, quella di tutte le collezioni
+  // della settimana, letta da «Compila tutti i riquadri».
+  var oreQta = {};             // chiave → { qta, img }
+  var sommaOreTutte = null;    // { qta }
   function spedSomma() {
     if (attivo !== 'chanel') return null;
-    // se anche un solo riquadro non ha i pezzi della settimana, la somma non si scrive (sarebbe parziale)
-    var tot = 0, n = 0, manca = false;
-    chiavi(state).forEach(function (k) {
-      var q = spedPezzi[k];
-      if (!q || !imgsAll.chanel[k] || imgsAll.chanel[k] !== q.img) return;
-      if (q.sped === null) manca = true; else { tot += q.sped; n++; }
-    });
-    return n && !manca ? tot : null;
+    var ks = chiavi(state);
+    for (var i = 0; i < ks.length; i++) { var q = oreQta[ks[i]]; if (q && imgsAll.chanel[ks[i]] && imgsAll.chanel[ks[i]] === q.img) return q.qta; }
+    if (!spedRiquadriOre(state).length && sommaOreTutte) return sommaOreTutte.qta;
+    return null;
   }
+  function spedVuoleSomma(m) { return /\{\s*somma\s*\}/i.test([m.apertura, m.chiusura, m.oggetto, m.firma].join(' ') + (m.sezioni || []).map(function (s) { return s.titolo + ' ' + (s.subs || []).map(function (b) { return b.testo; }).join(' '); }).join(' ')); }
   function spedSalvaElenco(sett, coppie) {
     var nuovo = { sett: sett, letto: new Date().toISOString(), coppie: coppie };
     var cambiato = !spedElenco || JSON.stringify(spedElenco.coppie) !== JSON.stringify(coppie);
@@ -3231,32 +3230,7 @@ kbd {
           d.ordine.forEach(function (k) {
             d.temi[k].righe.sort(function (a, b) { return ((b.qta || 0) - (a.qta || 0)) || (a.sku < b.sku ? -1 : a.sku > b.sku ? 1 : 0) || (a.desc < b.desc ? -1 : a.desc > b.desc ? 1 : 0); });
           });
-          // Pezzi spediti nella settimana (per {somma}): il numero verde della pagina è il totale della collezione, questo
-          // conta solo le spedizioni della settimana del giorno scelto, con i filtri di «Ore Spedite» (calendario del modello,
-          // VT-MAG-PF, V-VT, DDT V-DDT-CC-VT). Se la query non riesce, i riquadri restano compilati e {somma} no.
-          var O = PBI_ORE, QS = GUID.test(pbi.reportOre) ? 'ore' : 'sped';
-          var defP = 'DEFINE\n'
-            + "VAR __S = COALESCE(CALCULATE(MIN('Calendario'[Settimana]), 'Calendario'[Date] = " + pbiDataDax(quando) + '), ' + settimanaIso(quando) + ')\n'
-            + "VAR __Anno = FILTER(KEEPFILTERS(VALUES('Calendario'[Date])), AND('Calendario'[Date] >= DATE(" + giorno.a + ", 1, 1), 'Calendario'[Date] < DATE(" + (giorno.a + 1) + ', 1, 1)))\n'
-            + "VAR __SettO = TREATAS({__S}, 'Calendario'[Settimana])\n"
-            + "VAR __Area = TREATAS(" + elenco([O.area]) + ", 'salesLine'[Area])\n"
-            + "VAR __OV = TREATAS(" + elenco([O.ov]) + ", 'salesLine'[Tipologia OV])\n"
-            + "VAR __DDT = TREATAS(" + elenco([O.ddt]) + ", 'salesShipmentLine'[Tipologia DDT])\n";
-          var righeP = temi.map(function (t, i) {
-            defP += "VAR __C" + i + " = TREATAS(" + elenco([t.coll]) + ", 'salesShipmentLine'[Collezione])\n"
-              + "VAR __D" + i + " = TREATAS(" + elenco(t.desc) + ", 'salesLine'[Descrizione Commerciale])\n";
-            return 'ROW("T", ' + i + ', "S", __S, "Pezzi", CALCULATE(SUM(\'salesShipmentLine\'[Qtà]), __Anno, __SettO, __Area, __OV, __DDT, __C' + i + ', __D' + i + '))';
-          });
-          var daxPezzi = defP + 'EVALUATE ' + (righeP.length > 1 ? 'UNION(\n' + righeP.join(',\n') + ')' : righeP[0]);
-          return pbiQuery(daxPezzi, QS).then(function (rp) {
-            rp.forEach(function (x) {
-              var i = num(campo(x, '[T]')), t = i !== null && temi[i] ? d.temi[temi[i].chiave] : null;
-              if (!t) return;
-              t.pezziSett = num(campo(x, '[Pezzi]')) || 0;
-              if (num(campo(x, '[S]')) !== null) d.settPezzi = num(campo(x, '[S]'));
-            });
-            return d;
-          }, function (e) { d.pezziErrore = e.message; return d; });
+          return d;
         });
       });
     }).then(null, spiega);
@@ -3269,17 +3243,11 @@ kbd {
   function pbiElencoSped(d) {
     var v = [['Settimana', d.sett + (d.settCalcolata ? ' (calcolata da DiMail: nel modello non c\'è)' : '')]];
     if (!d.ordine.length) v.push(['Riquadri', 'nessuno ha collezione e descrizioni: sceglile a sinistra (lette ' + spedCollezioni().length + ' collezioni)']);
-    if (d.pezziErrore) v.push(['Pezzi della settimana', 'non letti, quindi {somma} non si calcola: ' + d.pezziErrore]);
-    else if (d.ordine.length) {
-      var tp = 0; d.ordine.forEach(function (k) { tp += d.temi[k].pezziSett || 0; });
-      v.push(['Pezzi spediti nella settimana' + (d.settPezzi ? ' ' + d.settPezzi : ''), pbiNumero(tp, 0) + ' (tutti i temi letti: è il valore di {somma} se sono tutti nella mail)']);
-    }
     function p1(x) { return x === null ? '--' : pbiNumero(x * 100, 1) + '%'; }
     d.ordine.forEach(function (k) {
       var t = d.temi[k];
       v.push([t.nome || k, t.coll + ' · ' + (t.desc.length === 1 ? t.desc[0] : t.desc.length + ' descrizioni') + ' · Obiettivo Collezione ' + pbiNumero(t.qta, 0) + ' · Spedita ' + pbiNumero(t.sped, 0) +
         ' · Obiettivo Attuale ' + pbiNumero(t.obAtt, 0) + ' · % Qtà Spedita ' + p1(t.pSped) + ' · % Obiettivo Attuale ' + p1(t.pObR) + ' · ' + t.righe.length + (t.righe.length === 1 ? ' articolo' : ' articoli') +
-        (t.pezziSett !== undefined && t.pezziSett !== null ? ' · spediti nella settimana ' + pbiNumero(t.pezziSett, 0) : '') +
         (t.righe.length > PBI_SPED.colonneMax ? ' (nel grafico i primi ' + PBI_SPED.colonneMax + ')' : '')]);
     });
     return v;
@@ -3449,9 +3417,7 @@ kbd {
         rr(1857, AY + (AH - hh) * prima / Math.max(1, righe - vis), 7, hh, 3.5); x.fillStyle = '#9E9E9E'; x.fill();
       }
     }
-    var fatta = { src: c.toDataURL('image/png'), ratio: c.height / c.width };
-    spedPezzi[chiave] = { sped: t.pezziSett === undefined ? null : t.pezziSett, img: fatta };
-    return fatta;
+    return { src: c.toDataURL('image/png'), ratio: c.height / c.width };
   }
 
   function pbiStessoGiorno(a, b) { return !!a && !!b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
@@ -3521,7 +3487,7 @@ kbd {
         return;
       }
       dest[chiave] = pag.immagine(d, chiave);
-      if (pag === PBI_PAGINE.ore) oreUltimo = chiave;
+      if (pag === PBI_PAGINE.ore) { oreUltimo = chiave; if (attivo === 'chanel') oreQta[chiave] = { qta: d.qta || 0, img: dest[chiave] }; }
       pbiOccupato = false;
       update();
       pbiEsito('ok', 'Riquadro «' + nomeRiquadro + '» compilato con la pagina «' + pag.nome + '», valori del ' + giorno.testo + (eraPieno ? ' (ha sostituito l\'immagine che c\'era)' : '') + '.', pag.elenco(d));
@@ -3557,9 +3523,18 @@ kbd {
           var contate = od.coll.filter(function (c) { return od.collTolte.indexOf(c) === -1; });
           valori.push([r.nome || r.chiave, 'Ore Spedite · settimana ' + od.sett + ' · collezioni ' + (contate.join(', ') || '--') + ' · Ore ' + pbiNumero(od.ore, 0) + ' · Qtà ' + pbiNumero(od.qta, 0) + ' · ' + od.righe.length + (od.righe.length === 1 ? ' articolo' : ' articoli')]);
           if (pbiVuotoOre(od)) vuoti.push(r.nome);
-          else { dest[r.chiave] = pbiImmagineOre(od); fatti++; }
+          else { dest[r.chiave] = pbiImmagineOre(od); oreQta[r.chiave] = { qta: od.qta || 0, img: dest[r.chiave] }; fatti++; }
         });
       });
+      if (!ore.length && spedVuoleSomma(state)) {
+        coda = coda.then(function () { return pbiLeggiOre(giorno, ''); }).then(function (od) {
+          sommaOreTutte = { qta: od.qta || 0 };
+          valori.push(['{somma}', 'Qtà Spedita di Ore Spedite, settimana ' + od.sett + ', tutte le collezioni (' + (od.coll.join(', ') || '--') + '): ' + pbiNumero(od.qta, 0)]);
+        }, function (e) {
+          sommaOreTutte = null;
+          valori.push(['{somma}', 'non calcolata: la pagina Ore Spedite non si è letta. ' + e.message]);
+        });
+      }
       return coda;
     }).then(function () {
       var tot = temi.length + ore.length;
