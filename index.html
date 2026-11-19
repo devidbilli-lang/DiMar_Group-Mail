@@ -1518,7 +1518,8 @@ kbd {
     $('#pbi-logout').hidden = !dentro;
     $('#pbi-prova').disabled = !dentro || pbiOccupato;
     $('#pbi-compila').disabled = !dentro || pbiOccupato || !pbiScheda();
-    $('#sped-leggi').disabled = !dentro || pbiOccupato || attivo !== 'chanel';
+    // senza accesso Microsoft l'elenco si chiede al Worker, con l'e-mail di chi gestisce la mail
+    $('#sped-leggi').disabled = !(dentro || gestPronta()) || pbiOccupato || attivo !== 'chanel';
     // il pulsante sta sopra l'anteprima: resta cliccabile anche senza accesso, così dice cosa manca
     $('#sped-tutti').disabled = pbiOccupato;
     $('#sped-tutti').textContent = pbiOccupato ? 'Compilo…' : 'Compila tutti i riquadri';
@@ -3028,10 +3029,13 @@ kbd {
   }
   function spedHtmlLista(coll, desc) {
     if (!coll) return '<p>Scegli la collezione della sezione (o scrivila nel titolo, per esempio «COLLEZIONE 27C»).</p>';
+    // senza l'elenco letto da Power BI si vedono solo quelle scelte (giuste così): le altre compaiono dopo la lettura
     var tutte = spedDescrizioni(coll), fuori = desc.filter(function (x) { return tutte.indexOf(x) === -1; });
-    if (!tutte.length && !fuori.length) return '<p>' + (spedElenco ? 'Nel modello la collezione ' + esc(coll) + ' non ha descrizioni: controlla il nome.' : 'Collegati a Power BI e premi «Leggi collezioni e descrizioni» (pannello Power BI).') + '</p>';
-    return tutte.concat(fuori).map(function (x) {
-      var f = fuori.indexOf(x) !== -1;
+    var leggi = 'premi «Leggi collezioni e descrizioni» nel pannello Power BI (senza accesso Microsoft le chiede al Worker, con la tua e-mail scritta sopra l\'anteprima)';
+    var nota = spedElenco ? '' : '<p>Per vedere e aggiungere le altre descrizioni ' + leggi + '.</p>';
+    if (!tutte.length && !fuori.length) return '<p>' + (spedElenco ? 'Nel modello la collezione ' + esc(coll) + ' non ha descrizioni: controlla il nome.' : 'Per vedere le descrizioni ' + leggi + '.') + '</p>';
+    return nota + tutte.concat(fuori).map(function (x) {
+      var f = !!spedElenco && fuori.indexOf(x) !== -1;
       return '<label' + (f ? ' class="fuori" title="Non c\'è più tra le descrizioni di questa collezione"' : '') + '><input type="checkbox" value="' + esc(x) + '"' + (desc.indexOf(x) !== -1 ? ' checked' : '') + '> ' + esc(x) + (f ? ' (non trovata)' : '') + '</label>';
     }).join('');
   }
@@ -3555,6 +3559,24 @@ kbd {
       toast('Compilazione non riuscita: il motivo è nel pannello Power BI.');
     }).then(function () { pbiOccupato = false; pbiDisegna(); });
   }
+  // Senza accesso a Power BI: collezioni e descrizioni le legge il Worker (solo nomi, settimana di oggi)
+  function spedElencoDalWorker() {
+    if (!gestPronta()) { pbiEsito('err', 'Accedi con Microsoft, oppure scrivi la tua e-mail sopra l\'anteprima: l\'elenco lo chiede al Worker.'); return; }
+    pbiEsito('info', 'Chiedo collezioni e descrizioni al Worker…');
+    gestConAccesso(function () {
+      pbiOccupato = true; pbiDisegna();
+      var fine = function () { pbiOccupato = false; pbiDisegna(); };
+      return gestRichiesta('GET', '/pubblica/elenco?report=chanel').then(function (o) {
+        fine();
+        if (o.j && o.j.ok && Array.isArray(o.j.coppie)) {
+          spedSalvaElenco(String(o.j.sett || ''), o.j.coppie.filter(function (c) { return Array.isArray(c) && typeof c[0] === 'string' && typeof c[1] === 'string'; }));
+          if (attivo === 'chanel') renderSezioni();
+          pbiEsito('ok', 'Lette tramite il Worker ' + spedCollezioni().length + ' collezioni e ' + o.j.coppie.length + ' descrizioni (settimana ' + o.j.sett + '). Ora, a sinistra, spunta le descrizioni di ogni riquadro e poi premi «Invia impostazioni al Worker».');
+        } else if (!gestNonRiconosciuto(o)) pbiEsito('err', (o.j && o.j.errore) || 'Il Worker ha risposto ' + o.stato + '.');
+        return o;
+      }, function () { fine(); pbiEsito('err', 'Il Worker non risponde: controlla l\'indirizzo e la connessione.'); return null; });
+    });
+  }
   var spedRifai = null;
   function spedRicompila(chiave) {
     clearTimeout(spedRifai);
@@ -3566,6 +3588,7 @@ kbd {
     }, 700);
   }
   function spedLeggiElenco() {
+    if (!pbiTok) { spedElencoDalWorker(); return; }
     var giorno = pbiGiorno();
     if (!giorno) return;
     pbiOccupato = true; pbiDisegna();
@@ -3720,6 +3743,7 @@ kbd {
   function gestSalva() { if (AUTO) return; try { localStorage.setItem(GEST_KEY, JSON.stringify(gest)); } catch (e) {} }
   function gestWorker() { var w = (String(gest.worker || '').trim() || WORKER_PREDEFINITO).replace(/\/+$/, ''); return /^https:\/\/[^\s\/?#]+$/i.test(w) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(w) ? w : ''; }
   function gestEmail() { var e = String(gest.email || '').trim().toLowerCase(); return /^[^\s<>"'(),;@]+@[^\s<>"'(),;@]+\.[^\s<>"'(),;@.]+$/.test(e) ? e : ''; }
+  function gestPronta() { return !!(gest && gestWorker() && gestEmail()); }
   function gestSessione() { return gest.sessione && gest.di === gestEmail() && Date.parse(gest.scade) > Date.now() ? gest.sessione : ''; }
   function gestDisegna() {
     var w = $('#gest-worker'), e = $('#gest-email');
@@ -3732,6 +3756,7 @@ kbd {
       : !gestWorker() ? 'L\'indirizzo del Worker (riquadro «Invio automatico») non è valido.'
       : q ? 'Browser riconosciuto fino al ' + q[0] + '.'
       : 'Al primo invio ti arriva un codice a ' + gestEmail() + '.';
+    pbiDisegna();
   }
   // CHANEL-AGGIORNAMENTO CONSEGNE: i riquadri che si compilano sono quelli con la pagina scelta e i suoi filtri (sotto i sottotitoli)
   function spedAutoRiquadri(m) { return spedTemi(m).map(function (t) { return t.chiave; }).concat(spedRiquadriOre(m).map(function (r) { return r.chiave; })); }
