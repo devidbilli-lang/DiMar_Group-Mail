@@ -1453,13 +1453,22 @@ kbd {
     var det = '';
     try {
       var e = x.j && x.j.error;
-      if (e) det = [e.code, e.message, e['pbi.error'] && e['pbi.error'].code].filter(Boolean).join(' · ');
+      if (e) {
+        // il motivo vero di una query rifiutata sta nei «details» (es. «Cannot find table 'Calendario'»)
+        var pe = e['pbi.error'] || {}, pezzi = [e.code, e.message, pe.code];
+        (Array.isArray(pe.details) ? pe.details : []).forEach(function (dd) {
+          var v = dd && dd.detail && dd.detail.value;
+          if (v && !/^[0-9]+$/.test(String(v))) pezzi.push(String(v));
+        });
+        det = pezzi.filter(function (v, i) { return v && pezzi.indexOf(v) === i; }).join(' · ');
+      }
     } catch (err) {}
     if (!det) det = String(x.t || '').slice(0, 200);
     var coda = det ? ' Dettaglio: ' + det.slice(0, 400) : '';
     if (x.status === 401) return 'Power BI non ha accettato l\'accesso (401). Premi «Esci» e accedi di nuovo.' + coda;
     if (x.status === 403) return 'Power BI ha rifiutato la richiesta (403): il tuo account non ha i permessi di lettura e build su questo modello, oppure l\'amministratore deve attivare l\'impostazione «Semantic Model Execute Queries REST API».' + coda;
     if (x.status === 404) return 'Report o area di lavoro non trovati (404): controlla gli ID in «Avanzate» e che il tuo account veda quel report.' + coda;
+    if (x.status === 400) return 'Power BI non ha accettato la query (400).' + coda;
     if (x.status === 429) return 'Troppe richieste in poco tempo: riprova tra un minuto.';
     return 'Power BI ha risposto con un errore (' + x.status + ').' + coda;
   }
@@ -2545,14 +2554,26 @@ kbd {
     var quando = new Date(giorno.a, giorno.m - 1, giorno.g);
     var d = { giorno: quando, anno: giorno.a, sett: null, ore: null, qta: null, inizio: null, fine: null, giorni: [], coll: [], righe: [], righeTotali: 0 };
     function spiega(e) {
-      if (!GUID.test(pbi.reportOre) && /salesShipmentLine|salesLine|Scadenze Chanel|Calendario|Valentano_CC/i.test(e.message || '')) {
-        throw new Error('Il report collegato non ha i dati delle spedizioni Chanel: questa pagina sta in un altro report. Apri «Avanzate» e incolla il suo indirizzo in «Report di CHANEL-ORE SPEDITE». ' + e.message);
+      var m = e.message || '', tabella = /salesShipmentLine|salesLine|Scadenze Chanel|Calendario|Valentano_CC/i.test(m);
+      // senza un report suo, una query rifiutata vuol dire quasi sempre che queste tabelle stanno in un altro modello
+      if (!GUID.test(pbi.reportOre) && (tabella || /\(400\)/.test(m))) {
+        throw new Error('Il report collegato (quello delle efficienze) non sembra avere i dati delle spedizioni Chanel: questa pagina sta in un altro report. Apri «Avanzate» e incolla il suo indirizzo in «Report di CHANEL-ORE SPEDITE», poi riprova. ' + m);
       }
+      if (GUID.test(pbi.reportOre) && /\(400\)/.test(m)) throw new Error('Il report indicato in «Report di CHANEL-ORE SPEDITE» non ha accettato la query: controlla che sia proprio il report di questa pagina. ' + m);
       throw e;
     }
+    // La settimana è quella del giorno scelto (che si apre su oggi), senza scriverla a mano: il numero si chiede al calendario
+    // del modello, così coincide con quello del report; se il modello non risponde si calcola qui (settimana ISO, dal lunedì).
+    function settimanaIso(q) {
+      var t = new Date(Date.UTC(q.getFullYear(), q.getMonth(), q.getDate())), g = t.getUTCDay() || 7;
+      t.setUTCDate(t.getUTCDate() + 4 - g);
+      return Math.ceil(((t - new Date(Date.UTC(t.getUTCFullYear(), 0, 1))) / 86400000 + 1) / 7);
+    }
     return pbiQuery("EVALUATE ROW(\"Sett\", CALCULATE(MIN('Calendario'[Settimana]), 'Calendario'[Date] = " + pbiDataDax(quando) + '))', Q).then(function (r0) {
-      d.sett = num((r0[0] || {})['[Sett]']);
-      if (d.sett === null) throw new Error('Il calendario del modello non ha la settimana del ' + giorno.testo + '.');
+      return num((r0[0] || {})['[Sett]']);
+    }, function () { return null; }).then(function (sett) {
+      d.sett = sett !== null && sett >= 1 && sett <= 54 ? Math.round(sett) : settimanaIso(quando);
+      d.settCalcolata = !(sett !== null && sett >= 1 && sett <= 54);
       var filtri = '__Anno, __Sett, __Area, __Coll, __OV, __DDT';
       var def = 'DEFINE\n'
         + "VAR __Anno = FILTER(KEEPFILTERS(VALUES('Calendario'[Date])), AND('Calendario'[Date] >= DATE(" + giorno.a + ", 1, 1), 'Calendario'[Date] < DATE(" + (giorno.a + 1) + ', 1, 1)))\n'
@@ -2599,7 +2620,7 @@ kbd {
     }).then(null, spiega);
   }
   function pbiElencoOre(d) {
-    var v = [['Settimana', d.sett + ' del ' + d.anno], ['Ore Spedite', pbiNumero(d.ore, 0)], ['Qtà Spedita', pbiNumero(d.qta, 0)], ['Collezione', d.coll.join(', ') || '--'], ['Data Inizio', d.inizio || '--'], ['Data Fine Iniziale (Chanel)', d.fine || '--']];
+    var v = [['Settimana', d.sett + ' del ' + d.anno + (d.settCalcolata ? ' (calcolata da DiMail)' : '')], ['Ore Spedite', pbiNumero(d.ore, 0)], ['Qtà Spedita', pbiNumero(d.qta, 0)], ['Collezione', d.coll.join(', ') || '--'], ['Data Inizio', d.inizio || '--'], ['Data Fine Iniziale (Chanel)', d.fine || '--']];
     d.giorni.forEach(function (g) { v.push(['Grafico ' + pbiDataBreve(g.data), pbiNumero(g.ore, 0) + ' Ore · ' + pbiNumero(g.qta, 0) + ' Pcs']); });
     d.righe.slice(0, PBI_ORE.righeMax).forEach(function (r) { v.push([r.sku, r.desc + ' · Qtà ' + pbiNumero(r.qta, 0) + ' · Ore ' + pbiNumero(r.ore, 0)]); });
     if (d.righe.length > PBI_ORE.righeMax) v.push(['Tabella', 'altri ' + (d.righe.length - PBI_ORE.righeMax) + ' articoli non entrano nella pagina']);
