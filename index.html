@@ -185,6 +185,10 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .sez-subs { grid-column: 2 / -1; display: grid; gap: 6px; }
 .sub-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
 /* CHANEL-AGGIORNAMENTO CONSEGNE: collezione della sezione e descrizioni di ogni riquadro, per Power BI */
+/* CHANEL-ORE SPEDITE: collezioni contate */
+.ore-coll { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 14px; }
+.ore-coll label { display: flex; gap: 5px; align-items: center; cursor: pointer; }
+#ore-coll-stato { flex-basis: 100%; }
 .sped-coll { grid-column: 2 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; color: var(--muted); }
 .sped-coll select { font: inherit; font-size: 13px; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; max-width: 100%; cursor: pointer; }
 .sped-desc { font-size: 13px; color: var(--muted); }
@@ -329,7 +333,7 @@ kbd {
               <div class="stile" data-size="aperturaSize" data-color="aperturaColor" data-nome="apertura"></div>
             </div>
             <textarea id="f-apertura" rows="5"></textarea>
-            <p class="hint">Metti il testo tra **doppi asterischi** per il grassetto. Scrivi <code>{data}</code> dove vuoi la data di oggi (es. 17/11): si aggiorna da sola ogni giorno. <code>{data_completa}</code> aggiunge l'anno. <code>{settimana}</code> diventa la settimana di oggi (es. S47).</p>
+            <p class="hint">Metti il testo tra **doppi asterischi** per il grassetto. Scrivi <code>{data}</code> dove vuoi la data di oggi (es. 17/11): si aggiorna da sola ogni giorno. <code>{data_completa}</code> aggiunge l'anno. <code>{settimana}</code> diventa la settimana di oggi (es. S47). In CHANEL-AGGIORNAMENTO CONSEGNE <code>{somma}</code> diventa la somma dei pezzi spediti (il numero verde di «Performance Spedizioni») dei riquadri compilati da Power BI.</p>
           </div>
         </div>
       </fieldset>
@@ -417,6 +421,11 @@ kbd {
             <label class="flabel" for="pbi-box">Riquadro</label>
             <select id="pbi-box"></select>
             <button type="button" class="btn primary" id="pbi-compila" disabled>Compila da Power BI</button>
+          </div>
+          <div class="pbi-row" id="ore-coll-riga" hidden>
+            <span class="flabel">Collezioni</span>
+            <span class="ore-coll" id="ore-coll-lista"></span>
+            <span class="hint" id="ore-coll-stato"></span>
           </div>
           <div class="pbi-row" id="sped-riga" hidden>
             <button type="button" class="btn" id="sped-leggi" disabled>Leggi collezioni e descrizioni</button>
@@ -745,7 +754,10 @@ kbd {
     var chiaveGiorno = o.getFullYear() + '-' + due(o.getMonth() + 1) + '-' + due(o.getDate());
     var sett = (settimanaLetta && settimanaLetta.giorno === chiaveGiorno) ? settimanaLetta.sett : settimanaIso(o);
     // tollera maiuscole, spazi e trattini: {data}, { Data }, {data completa}, {data-completa}, { Settimana }…
-    return String(s || '').replace(/\{\s*data[\s_-]*completa\s*\}/gi, breve + '/' + o.getFullYear()).replace(/\{\s*data\s*\}/gi, breve).replace(/\{\s*settimana\s*\}/gi, 'S' + due(sett));
+    var t = String(s || '').replace(/\{\s*data[\s_-]*completa\s*\}/gi, breve + '/' + o.getFullYear()).replace(/\{\s*data\s*\}/gi, breve).replace(/\{\s*settimana\s*\}/gi, 'S' + due(sett));
+    // {somma}: finché i riquadri non sono compilati resta scritto così (nella mail automatica, che li compila sempre prima, «--»)
+    if (/\{\s*somma\s*\}/i.test(t)) { var tot = spedSomma(); t = t.replace(/\{\s*somma\s*\}/gi, tot !== null ? pbiNumero(tot, 0) : AUTO ? '--' : '{somma}'); }
+    return t;
   }
 
   // Testo della mail: Montserrat dove chi legge ce l'ha (installato sul PC, oppure caricato dai programmi che accettano i caratteri
@@ -1281,7 +1293,8 @@ kbd {
   $('#copy-mail').addEventListener('click', function () {
     var html = buildEmail('export');
     var text = buildText();
-    var fatto = 'Mail «' + modello(attivo).nome + '» copiata. Incollala nel corpo di una nuova mail Gmail.';
+    var fatto = 'Mail «' + modello(attivo).nome + '» copiata. Incollala nel corpo di una nuova mail Gmail.' +
+      (/\{\s*somma\s*\}/i.test(text) ? ' Attenzione: {somma} non è ancora calcolata, compila prima i riquadri da Power BI.' : '');
     var fallback = function () {
       var tmp = document.createElement('div');
       tmp.style.cssText = 'position:fixed;left:-99999px;top:0;background:#FFFFFF;';
@@ -2604,6 +2617,54 @@ kbd {
       im.src = m[1];
     } catch (e) { fatto(null); }
   });
+  // Collezioni della pagina «Ore Spedite Chanel»: quelle della settimana si contano tutte da sole; in DiMail si possono
+  // togliere, e la scelta vale anche per la mail automatica (viaggia nelle impostazioni). Le nuove entrano da sole.
+  var ORE_COLL_KEY = 'dimail-ore-coll-v1';
+  var oreCollLette = null;   // { sett: 47, coll: ['27C', '27P'] } — l'ultima lettura, per mostrare le caselle
+  if (!AUTO) { try { var oreLette = JSON.parse(localStorage.getItem(ORE_COLL_KEY) || 'null'); if (oreLette && Array.isArray(oreLette.coll)) oreCollLette = oreLette; } catch (e) {} }
+  function oreModello() { return attivo === 'ore' ? state : store.modelli.ore; }
+  function oreCollTolte() {
+    var m = oreModello();
+    return m && Array.isArray(m.collTolte) ? m.collTolte.filter(function (c) { return typeof c === 'string' && c; }) : [];
+  }
+  function oreCollSalva(sett, coll) {
+    oreCollLette = { sett: sett, coll: coll.slice() };
+    if (!AUTO) { try { localStorage.setItem(ORE_COLL_KEY, JSON.stringify(oreCollLette)); } catch (e) {} }
+    oreCollDisegna();
+  }
+  function oreCollDisegna() {
+    var riga = $('#ore-coll-riga');
+    if (!riga || AUTO) return;
+    riga.hidden = attivo !== 'ore';
+    if (attivo !== 'ore') return;
+    var tolte = oreCollTolte(), tutte = (oreCollLette ? oreCollLette.coll : []).slice();
+    tolte.forEach(function (c) { if (tutte.indexOf(c) === -1) tutte.push(c); });
+    var contate = tutte.filter(function (c) { return tolte.indexOf(c) === -1; });
+    $('#ore-coll-lista').innerHTML = tutte.map(function (c) {
+      var on = tolte.indexOf(c) === -1;
+      return '<label><input type="checkbox" value="' + esc(c) + '"' + (on ? ' checked' : '') + (on && contate.length === 1 ? ' disabled title="Almeno una collezione resta contata"' : '') + '> ' + esc(c) + '</label>';
+    }).join('');
+    $('#ore-coll-stato').textContent = !tutte.length ? 'Si leggono con «Prova collegamento» o «Compila»: poi qui togli quelle da non contare.'
+      : 'Settimana ' + (oreCollLette ? oreCollLette.sett : '--') + ': le spuntate si contano, le nuove si spuntano da sole.' + (tolte.length ? ' Tolte: ' + tolte.join(', ') + '.' : '');
+  }
+  var oreUltimo = null, oreRifai = null;   // il riquadro compilato per ultimo con questa pagina: si ricompila quando cambiano le collezioni
+  $('#ore-coll-lista').addEventListener('change', function (e) {
+    if (!e.target.matches('input[type="checkbox"]') || attivo !== 'ore') return;
+    var tolte = [];
+    $('#ore-coll-lista').querySelectorAll('input[type="checkbox"]').forEach(function (c) { if (!c.checked) tolte.push(c.value); });
+    state.collTolte = tolte;
+    save();
+    oreCollDisegna();
+    clearTimeout(oreRifai);
+    if (oreUltimo && pbiTok && chiavi(state).indexOf(oreUltimo) !== -1 && imgs[oreUltimo]) {
+      oreRifai = setTimeout(function () {
+        if (pbiOccupato || attivo !== 'ore') return;
+        $('#pbi-box').value = oreUltimo;
+        if ($('#pbi-pagina').value !== 'ore') return;
+        pbiCompila();
+      }, 700);
+    } else toast('Collezioni salvate: compila il riquadro per vedere le quantità.');
+  });
   function pbiLeggiOre(giorno) {
     var P = PBI_ORE, Q = 'ore';
     function elenco(l) { return '{' + l.map(function (n) { return '"' + n.replace(/"/g, '""') + '"'; }).join(', ') + '}'; }
@@ -2633,12 +2694,15 @@ kbd {
       d.sett = sett !== null && sett >= 1 && sett <= 54 ? Math.round(sett) : settimanaIso(quando);
       d.settCalcolata = !(sett !== null && sett >= 1 && sett <= 54);
       settimanaLetta = { giorno: giorno.a + '-' + ('0' + giorno.m).slice(-2) + '-' + ('0' + giorno.g).slice(-2), sett: d.sett };   // per {settimana} nei testi della mail
-      var filtri = '__Anno, __Sett, __Area, __Coll, __OV, __DDT';
+      var filtri = '__Anno, __Sett, __Area, __Coll, __OV, __DDT', togli = oreCollTolte();
+      d.collTolte = togli.slice();
       var def = 'DEFINE\n'
         + "VAR __Anno = FILTER(KEEPFILTERS(VALUES('Calendario'[Date])), AND('Calendario'[Date] >= DATE(" + giorno.a + ", 1, 1), 'Calendario'[Date] < DATE(" + (giorno.a + 1) + ', 1, 1)))\n'
         + "VAR __Sett = TREATAS({" + d.sett + "}, 'Calendario'[Settimana])\n"
         + "VAR __Area = TREATAS(" + elenco([P.area]) + ", 'salesLine'[Area])\n"
-        + "VAR __Coll = FILTER(KEEPFILTERS(VALUES('salesShipmentLine'[Collezione])), NOT('salesShipmentLine'[Collezione] IN " + elenco(P.collezioniEscluse) + '))\n'
+        + "VAR __CollTutte = FILTER(KEEPFILTERS(VALUES('salesShipmentLine'[Collezione])), NOT('salesShipmentLine'[Collezione] IN " + elenco(P.collezioniEscluse) + '))\n'
+        // le collezioni tolte a mano in DiMail si sommano a quelle che la pagina esclude già
+        + "VAR __Coll = FILTER(KEEPFILTERS(VALUES('salesShipmentLine'[Collezione])), NOT('salesShipmentLine'[Collezione] IN " + elenco(P.collezioniEscluse.concat(togli)) + '))\n'
         + "VAR __OV = TREATAS(" + elenco([P.ov]) + ", 'salesLine'[Tipologia OV])\n"
         + "VAR __DDT = TREATAS(" + elenco([P.ddt]) + ", 'salesShipmentLine'[Tipologia DDT])\n";
       var daxValori = def + 'EVALUATE ROW(\n'
@@ -2648,7 +2712,7 @@ kbd {
         + "\"Fine\", CALCULATE(MIN('Scadenze Chanel'[SCADENZA INIZIALE]), " + filtri + '))';
       var daxGiorni = def + "EVALUATE SUMMARIZECOLUMNS('Calendario'[Date], " + filtri + ",\n"
         + "\"Ore\", 'Calendario'[Valentano_CC],\n\"Qta\", CALCULATE(SUM('salesShipmentLine'[Qtà])))\nORDER BY 'Calendario'[Date]";
-      var daxColl = def + "EVALUATE CALCULATETABLE(VALUES('salesShipmentLine'[Collezione]), " + filtri + ")\nORDER BY 'salesShipmentLine'[Collezione]";
+      var daxColl = def + "EVALUATE CALCULATETABLE(VALUES('salesShipmentLine'[Collezione]), " + filtri.replace('__Coll', '__CollTutte') + ")\nORDER BY 'salesShipmentLine'[Collezione]";
       var daxRighe = def + "VAR __Righe = SUMMARIZECOLUMNS('salesShipmentLine'[Articolo + Colore], 'salesLine'[Descrizione Commerciale], " + filtri + ",\n"
         + "\"Qta\", CALCULATE(SUM('salesShipmentLine'[Qtà])),\n\"Ore\", 'Calendario'[Valentano_CC])\n"
         + "EVALUATE TOPN(200, __Righe, [Qta], 0, 'salesShipmentLine'[Articolo + Colore], 1, 'salesLine'[Descrizione Commerciale], 1)\n"
@@ -2666,6 +2730,7 @@ kbd {
         return pbiQuery(daxColl, Q);
       }).then(function (rc) {
         rc.forEach(function (x) { var c = campo(x, '[Collezione]'); if (c !== null && String(c) !== '') d.coll.push(String(c)); });
+        oreCollSalva(d.sett, d.coll);
         return pbiQuery(daxRighe, Q);
       }).then(function (rr_) {
         rr_.forEach(function (x) {
@@ -2679,7 +2744,8 @@ kbd {
     }).then(null, spiega);
   }
   function pbiElencoOre(d) {
-    var v = [['Settimana', d.sett + ' del ' + d.anno + (d.settCalcolata ? ' (calcolata da DiMail)' : '')], ['Ore Spedite', pbiNumero(d.ore, 0)], ['Qtà Spedita', pbiNumero(d.qta, 0)], ['Collezione', d.coll.join(', ') || '--'], ['Data Inizio', d.inizio || '--'], ['Data Fine Iniziale (Chanel)', d.fine || '--']];
+    var contate = d.coll.filter(function (c) { return (d.collTolte || []).indexOf(c) === -1; }), fuori = d.coll.filter(function (c) { return (d.collTolte || []).indexOf(c) !== -1; });
+    var v = [['Settimana', d.sett + ' del ' + d.anno + (d.settCalcolata ? ' (calcolata da DiMail)' : '')], ['Ore Spedite', pbiNumero(d.ore, 0)], ['Qtà Spedita', pbiNumero(d.qta, 0)], ['Collezioni contate', contate.join(', ') || '--'], ['Collezioni tolte', fuori.join(', ') || 'nessuna'], ['Data Inizio', d.inizio || '--'], ['Data Fine Iniziale (Chanel)', d.fine || '--']];
     d.giorni.forEach(function (g) { v.push(['Grafico ' + pbiDataBreve(g.data), pbiNumero(g.ore, 0) + ' Ore · ' + pbiNumero(g.qta, 0) + ' Pcs']); });
     d.righe.slice(0, PBI_ORE.righeMax).forEach(function (r) { v.push([r.sku, r.desc + ' · Qtà ' + pbiNumero(r.qta, 0) + ' · Ore ' + pbiNumero(r.ore, 0)]); });
     if (d.righe.length > PBI_ORE.righeMax) v.push(['Tabella', 'altri ' + (d.righe.length - PBI_ORE.righeMax) + ' articoli non entrano nella pagina']);
@@ -2774,9 +2840,10 @@ kbd {
       var nc = d.coll.length, per = Math.min(nc, 4), righeC = Math.ceil(nc / per), lc = (266 - 8 * (per - 1)) / per, hc = (157 - 8 * (righeC - 1)) / righeC;
       d.coll.forEach(function (nome, i) {
         var cx0 = 1242 + (i % per) * (lc + 8), cy0 = 190 + Math.floor(i / per) * (hc + 8);
-        rr(cx0, cy0, lc, hc, 9); x.fillStyle = BIANCO; x.fill(); x.lineWidth = 4; x.strokeStyle = BLU; x.stroke();
-        var f = adatta(nome, '', righeC > 1 ? 22 : 26, 11, lc - 14);
-        testo(nome, cx0 + lc / 2, cy0 + hc / 2 + parseInt(f, 10) * 0.36, f, '#000000');
+        var scelta = (d.collTolte || []).indexOf(nome) === -1;
+        rr(cx0, cy0, lc, hc, 9); x.fillStyle = scelta ? BLU : BIANCO; x.fill(); x.lineWidth = 4; x.strokeStyle = BLU; x.stroke();
+        var f = adatta(nome, scelta ? '700 ' : '', righeC > 1 ? 22 : 26, 11, lc - 14);
+        testo(nome, cx0 + lc / 2, cy0 + hc / 2 + parseInt(f.replace(/^700 /, ''), 10) * 0.36, f, scelta ? BIANCO : '#000000');
       });
     }
 
@@ -2901,6 +2968,15 @@ kbd {
     return v;
   }
   function spedModello() { return attivo === 'chanel' ? state : store.modelli.chanel; }
+  // Pezzi spediti di ogni riquadro disegnato da questa pagina: { chiave: { sped, img } }. Contano solo i riquadri che hanno
+  // ancora quell'immagine (uno screenshot incollato sopra, o un riquadro tolto, non entra nella somma).
+  var spedPezzi = {};
+  function spedSomma() {
+    if (attivo !== 'chanel') return null;
+    var tot = 0, n = 0;
+    chiavi(state).forEach(function (k) { var q = spedPezzi[k]; if (q && imgsAll.chanel[k] && imgsAll.chanel[k] === q.img) { tot += q.sped || 0; n++; } });
+    return n ? tot : null;
+  }
   function spedSalvaElenco(sett, coppie) {
     var nuovo = { sett: sett, letto: new Date().toISOString(), coppie: coppie };
     var cambiato = !spedElenco || JSON.stringify(spedElenco.coppie) !== JSON.stringify(coppie);
@@ -3261,7 +3337,9 @@ kbd {
         rr(1857, AY + (AH - hh) * prima / Math.max(1, righe - vis), 7, hh, 3.5); x.fillStyle = '#9E9E9E'; x.fill();
       }
     }
-    return { src: c.toDataURL('image/png'), ratio: c.height / c.width };
+    var fatta = { src: c.toDataURL('image/png'), ratio: c.height / c.width };
+    spedPezzi[chiave] = { sped: t.sped, img: fatta };
+    return fatta;
   }
 
   function pbiStessoGiorno(a, b) { return !!a && !!b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
@@ -3301,6 +3379,7 @@ kbd {
     Array.prototype.forEach.call(sel.options, function (o) { o.disabled = attivo === 'chanel' ? o.value !== 'sped' : o.value === 'sped'; });
     $('#sped-riga').hidden = attivo !== 'chanel';
     spedStato();
+    oreCollDisegna();
     var propria = { ore: 'ore', chanel: 'sped' }[attivo];
     var vuole = propria || (sel.value === 'ore' || sel.value === 'sped' ? (PBI_PAGINE[pbi.pagina] && pbi.pagina !== 'ore' && pbi.pagina !== 'sped' ? pbi.pagina : 'pannello') : sel.value);
     if (sel.value !== vuole) { sel.value = vuole; sel.dispatchEvent(new Event('change')); }
@@ -3324,6 +3403,7 @@ kbd {
         return;
       }
       dest[chiave] = pag.immagine(d, chiave);
+      if (pag === PBI_PAGINE.ore) oreUltimo = chiave;
       pbiOccupato = false;
       update();
       pbiEsito('ok', 'Riquadro «' + nomeRiquadro + '» compilato con la pagina «' + pag.nome + '», valori del ' + giorno.testo + (eraPieno ? ' (ha sostituito l\'immagine che c\'era)' : '') + '.', pag.elenco(d));
