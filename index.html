@@ -417,7 +417,7 @@ kbd {
         <legend>Invio automatico</legend>
         <div class="stack" id="auto-corpo">
           <span class="big-label">RIQUADRI CHE SI COMPILANO DA SOLI</span>
-          <p class="hint">Per ogni riquadro scegli cosa lo riempie quando la mail parte dal Worker: una pagina di Power BI oppure la griglia di NEXUS. I riquadri lasciati su «Nessuna» restano fuori dalla mail automatica.</p>
+          <p class="hint">Queste scelte valgono per la scheda aperta: ogni report ha le sue. Per ogni riquadro scegli cosa lo riempie quando la mail parte dal Worker: una pagina di Power BI oppure, in REPORT EFFICIENZE, la griglia o le note di NEXUS. I riquadri lasciati su «Nessuna» restano fuori dalla mail automatica.</p>
           <div class="stack" id="auto-lista"></div>
           <div class="field" id="auto-nexus-campo">
             <label for="auto-nexus">Indirizzo di NEXUS</label>
@@ -442,9 +442,9 @@ kbd {
           <div class="pbi-row">
             <button type="button" class="btn primary" id="auto-copia">Copia impostazioni per il Worker</button>
           </div>
-          <p class="hint">Incollale nella pagina del Worker. Vanno ricopiate ogni volta che cambi testi, sezioni, destinatari o queste scelte.</p>
+          <p class="hint">Incollale nella pagina del Worker: sanno da sole di quale report sono. Vanno ricopiate ogni volta che cambi testi, sezioni, destinatari o queste scelte.</p>
         </div>
-        <p class="hint" id="auto-altro" hidden>L'invio automatico riguarda solo REPORT EFFICIENZE.</p>
+        <p class="hint" id="auto-altro" hidden>L'invio automatico riguarda REPORT EFFICIENZE e CHANEL-ORE SPEDITE.</p>
       </fieldset>
 
       <button type="button" class="link" id="reset">Ripristina predefiniti</button>
@@ -594,7 +594,11 @@ kbd {
         { titolo: 'Ore spedite', sub: true, sotto: '', note: false }
       ],
       chiusura: 'Un saluto',
-      destinatari: ''
+      destinatari: '',
+      oggetto: 'CHANEL-ORE SPEDITE {data}',
+      mittenteNome: '',
+      firma: '',
+      auto: {}   // invio automatico: chiave del riquadro → pagina di Power BI che lo riempie
     }
   };
 
@@ -1675,9 +1679,9 @@ kbd {
   }
   // Fine dell'ultimo aggiornamento riuscito del modello nel servizio (cronologia degli aggiornamenti): una Date oppure null.
   // Se la lettura non riesce il pannello si disegna lo stesso, con «--» al posto di data e ora.
-  function pbiAggiornamento() {
-    return pbiDataset().then(function (ds) {
-      return pbiApi('groups/' + encodeURIComponent(pbi.group.trim()) + '/datasets/' + ds + '/refreshes?$top=10');
+  function pbiAggiornamento(quale) {
+    return pbiDataset(quale).then(function (ds) {
+      return pbiApi('groups/' + encodeURIComponent(pbiReportDi(quale).group) + '/datasets/' + ds + '/refreshes?$top=10');
     }).then(function (j) {
       var v = (j && j.value) || [];
       for (var i = 0; i < v.length; i++) {
@@ -2800,7 +2804,7 @@ kbd {
   var PBI_PAGINE = {
     pannello: { nome: 'Pannello di Controllo', leggi: pbiLeggi, elenco: pbiElenco, vuoto: pbiVuoto, senzaGiorno: pbiVuoto, immagine: pbiImmagine },
     // «grafico» qui vuol dire solo che la pagina accetta un'immagine caricata: va al centro dell'intestazione
-    ore: { nome: 'Ore Spedite Chanel', grafico: true, immagineDove: 'va al centro dell\'intestazione', leggi: pbiLeggiOre, elenco: pbiElencoOre, vuoto: pbiVuotoOre, senzaGiorno: pbiVuotoOre, immagine: pbiImmagineOre },
+    ore: { nome: 'Ore Spedite Chanel', quale: 'ore', grafico: true, immagineDove: 'va al centro dell\'intestazione', leggi: pbiLeggiOre, elenco: pbiElencoOre, vuoto: pbiVuotoOre, senzaGiorno: pbiVuotoOre, immagine: pbiImmagineOre },
     lv: { nome: 'Efficienza LV', grafico: true, leggi: function (g) { return pbiLeggiBrand(PBI_LV, g); }, elenco: pbiElencoLV, vuoto: pbiVuotoLV, senzaGiorno: pbiSenzaGiornoLV, immagine: pbiImmagineLV },
     cc: { nome: 'Efficienza Chanel', grafico: true, leggi: function (g) { return pbiLeggiBrand(PBI_CC, g); }, elenco: pbiElencoLV, vuoto: pbiVuotoLV, senzaGiorno: pbiSenzaGiornoLV, immagine: pbiImmagineLV },
     taglio: { nome: 'Taglio DG', grafico: true, leggi: function (g) { return pbiLeggiReparto(PBI_TG, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto },
@@ -2952,9 +2956,12 @@ kbd {
     u = String(u || '').trim();
     return /^https:\/\/[^\s/?#]+(\/[^\s?#]*)?$/i.test(u) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/[^\s?#]*)?$/i.test(u);
   }
+  // Le schede che il Worker sa spedire da solo, ognuna con le sue impostazioni
+  var AUTO_SCHEDE = { eff: 1, ore: 1 };
+  function autoModello() { return AUTO_SCHEDE[attivo] ? store.modelli[attivo] : null; }
   function autoVoci() {
     var v = [];
-    store.modelli.eff.sezioni.forEach(function (sz_, i) {
+    (autoModello() || store.modelli.eff).sezioni.forEach(function (sz_, i) {
       var nome = (i + 1) + '. ' + (sz_.titolo.trim() || 'Titolo sezione');
       var bl = blocchi(sz_);
       if (bl) bl.forEach(function (b, j) { v.push([sz_.id + '-' + b.id, nome + ' · ' + (String(b.testo || '').trim() || 'Sottotitolo ' + (j + 1))]); });
@@ -2965,22 +2972,25 @@ kbd {
   function autoDisegna() {
     var corpo = $('#auto-corpo');
     if (!corpo) return;
-    var eff = attivo === 'eff';
-    corpo.hidden = !eff; $('#auto-altro').hidden = eff;
-    if (!eff) return;
-    var m = store.modelli.eff;
+    var m = autoModello(), eff = attivo === 'eff';
+    corpo.hidden = !m; $('#auto-altro').hidden = !!m;
+    if (!m) return;
     if (!m.auto || typeof m.auto !== 'object') m.auto = {};
+    if (m.oggetto === undefined) m.oggetto = DEFS[attivo].oggetto;
+    // NEXUS entra solo in REPORT EFFICIENZE: nelle altre schede i riquadri si riempiono da Power BI
+    var fonti = Object.keys(PBI_PAGINE).concat(eff ? ['nexus', 'nexus_note'] : []);
+    $('#auto-nexus-campo').hidden = !eff;
     var voci = autoVoci(), valide = {};
     voci.forEach(function (v) { valide[v[0]] = 1; });
     Object.keys(m.auto).forEach(function (k) { if (!valide[k] || !fonteAuto(m.auto[k])) delete m.auto[k]; });
     $('#auto-lista').innerHTML = voci.map(function (v, n) {
       return '<div class="auto-riga"><label class="flabel" for="auto-s-' + n + '">' + esc(v[1]) + '</label>' +
         '<select id="auto-s-' + n + '" data-chiave="' + esc(v[0]) + '"><option value="">Nessuna</option>' +
-        Object.keys(PBI_PAGINE).concat(['nexus', 'nexus_note']).map(function (id) { return '<option value="' + id + '"' + (m.auto[v[0]] === id ? ' selected' : '') + '>' + esc(fonteAuto(id).nome) + '</option>'; }).join('') +
+        fonti.map(function (id) { return '<option value="' + id + '"' + (m.auto[v[0]] === id ? ' selected' : '') + '>' + esc(fonteAuto(id).nome) + '</option>'; }).join('') +
         '</select></div>';
     }).join('');
     var og = $('#auto-oggetto');
-    if (document.activeElement !== og) og.value = m.oggetto === undefined ? DEFS.eff.oggetto : m.oggetto;
+    if (document.activeElement !== og) og.value = m.oggetto;
     var nx = $('#auto-nexus');
     if (document.activeElement !== nx) nx.value = m.nexusUrl || '';
     var mn = $('#auto-mittente');
@@ -2991,16 +3001,19 @@ kbd {
   $('#auto-lista').addEventListener('change', function (e) {
     var sel = e.target.closest('select[data-chiave]');
     if (!sel) return;
-    var m = store.modelli.eff;
+    var m = autoModello();
+    if (!m) return;
     if (sel.value) m.auto[sel.getAttribute('data-chiave')] = sel.value; else delete m.auto[sel.getAttribute('data-chiave')];
     save();
   });
-  $('#auto-oggetto').addEventListener('input', function (e) { store.modelli.eff.oggetto = e.target.value; save(); });
-  $('#auto-mittente').addEventListener('input', function (e) { store.modelli.eff.mittenteNome = e.target.value; save(); });
-  $('#auto-firma').addEventListener('input', function (e) { store.modelli.eff.firma = e.target.value; save(); });
+  $('#auto-oggetto').addEventListener('input', function (e) { var m = autoModello(); if (m) { m.oggetto = e.target.value; save(); } });
+  $('#auto-mittente').addEventListener('input', function (e) { var m = autoModello(); if (m) { m.mittenteNome = e.target.value; save(); } });
+  $('#auto-firma').addEventListener('input', function (e) { var m = autoModello(); if (m) { m.firma = e.target.value; save(); } });
   $('#auto-nexus').addEventListener('input', function (e) { store.modelli.eff.nexusUrl = e.target.value.trim(); save(); });
   $('#auto-copia').addEventListener('click', function () {
-    var m = store.modelli.eff, quanti = Object.keys(m.auto || {}).length;
+    var m = autoModello();
+    if (!m) return;
+    var quanti = Object.keys(m.auto || {}).length;
     if (!quanti) { toast('Scegli prima almeno una pagina per un riquadro.'); return; }
     var usaNexus = Object.keys(m.auto).some(function (k) { return m.auto[k] === 'nexus' || m.auto[k] === 'nexus_note'; });
     if (usaNexus && !nexusValido(m.nexusUrl)) { toast('Scrivi l\'indirizzo di NEXUS (comincia con https://).'); $('#auto-nexus').focus(); return; }
@@ -3015,8 +3028,8 @@ kbd {
       if (n) o.sfondi = sf;
       return o;
     }
-    var testo = JSON.stringify({ dimail: 1, creato: new Date().toISOString(), modello: m, pbi: pbiPerWorker(m) });
-    var fatto = 'Impostazioni copiate: ' + (quanti === 1 ? '1 riquadro automatico' : quanti + ' riquadri automatici') + ', ' +
+    var testo = JSON.stringify({ dimail: 1, report: attivo, creato: new Date().toISOString(), modello: m, pbi: pbiPerWorker(m) });
+    var fatto = 'Impostazioni di ' + modello(attivo).nome + ' copiate: ' + (quanti === 1 ? '1 riquadro automatico' : quanti + ' riquadri automatici') + ', ' +
       (dest.ok.length === 1 ? '1 destinatario' : dest.ok.length + ' destinatari') + '. Incollale nella pagina del Worker.' +
       (dest.ok.length ? '' : ' Attenzione: la lista mail è vuota.');
     var ripiego = function () {
@@ -3116,7 +3129,7 @@ kbd {
     }
     // Segnale di fine per il browser senza schermo. Il testo del segnale è composto qui, così non compare nel sorgente della pagina.
     function fine(esito, testo) {
-      try { imgsAll.eff = {}; imgs = imgsAll[attivo]; $('#mail').innerHTML = ''; } catch (e) {}
+      try { imgsAll[attivo] = {}; imgs = imgsAll[attivo]; $('#mail').innerHTML = ''; } catch (e) {}
       var el = document.createElement('div');
       el.id = 'dimail-auto-fine';
       el.hidden = true;
@@ -3173,10 +3186,12 @@ kbd {
       riepilogo.giorno = cfg.giorno; riepilogo.modo = cfg.modo;
       // il modello arriva dal Worker: prende il posto di quello predefinito, solo per questo giro
       var m = clone(cfg.imp.modello);
-      Object.keys(DEFS.eff).forEach(function (k) { if (m[k] === undefined) m[k] = clone(DEFS.eff[k]); });
+      var qui = AUTO_SCHEDE[cfg.report] ? cfg.report : 'eff';   // il report di questo giro (senza indicazione: REPORT EFFICIENZE)
+      Object.keys(DEFS[qui]).forEach(function (k) { if (m[k] === undefined) m[k] = clone(DEFS[qui][k]); });
       normalizza(m);
-      store.modelli.eff = m; attivo = 'eff'; store.attivo = 'eff'; state = m;
-      imgsAll.eff = {}; imgs = imgsAll.eff;
+      store.modelli[qui] = m; attivo = qui; store.attivo = qui; state = m;
+      imgsAll[qui] = {}; imgs = imgsAll[qui];
+      riepilogo.report = qui;
       if (cfg.imp.pbi) ['tenant', 'group', 'report'].forEach(function (k) { if (GUID.test(String(cfg.imp.pbi[k] || '').trim())) pbi[k] = String(cfg.imp.pbi[k]).trim(); });
       ['groupOre', 'reportOre'].forEach(function (k) { pbi[k] = cfg.imp.pbi && GUID.test(String(cfg.imp.pbi[k] || '').trim()) ? String(cfg.imp.pbi[k]).trim() : ''; });
       pbi.dataset = ''; pbi.nomeReport = ''; pbi.datasetOre = '';
@@ -3197,12 +3212,17 @@ kbd {
       attesaNote.catch(function () {});
 
       // se richiesto, la mail parte solo se il modello è stato aggiornato oggi
-      var controllo = (cfg.soloAggiornatoOggi && chiaviPbi.length) ? pbiAggiornamento() : Promise.resolve(null);
+      // (un controllo per ogni modello usato dalle pagine assegnate: le spedizioni Chanel possono stare in un altro)
+      var modelliUsati = [];
+      chiaviPbi.forEach(function (k) { var q = PBI_PAGINE[state.auto[k]].quale || ''; if (modelliUsati.indexOf(q) === -1) modelliUsati.push(q); });
+      var controllo = (cfg.soloAggiornatoOggi && chiaviPbi.length) ? Promise.all(modelliUsati.map(function (q) { return pbiAggiornamento(q); })) : Promise.resolve([]);
       var escluse = {};   // pagine di Power BI senza dati per il giorno: i loro riquadri restano fuori dalla mail
-      var pbiFatto = controllo.then(function (agg) {
-        if (cfg.soloAggiornatoOggi && agg && giornoRoma(agg) && giornoRoma(agg) !== cfg.giorno) {
-          throw new Error('Il modello di Power BI non è stato aggiornato oggi (ultimo aggiornamento ' + pbiDataOra(agg).join(' ') + '): mail non inviata.');
-        }
+      var pbiFatto = controllo.then(function (aggiornamenti) {
+        (cfg.soloAggiornatoOggi ? aggiornamenti : []).forEach(function (agg) {
+          if (agg && giornoRoma(agg) && giornoRoma(agg) !== cfg.giorno) {
+            throw new Error('Il modello di Power BI non è stato aggiornato oggi (ultimo aggiornamento ' + pbiDataOra(agg).join(' ') + '): mail non inviata.');
+          }
+        });
         // una lettura per pagina, anche se la stessa pagina riempie più riquadri
         var letti = {}, coda = Promise.resolve();
         chiaviPbi.forEach(function (k) {
@@ -3216,7 +3236,7 @@ kbd {
           });
         });
         return coda.then(function () { return Promise.all([pbiSfondiPronti(), pbiCaratteri, pbiLogoAttesa]); }).then(function () {
-          chiaviPbi.forEach(function (k) { if (!escluse[state.auto[k]]) imgsAll.eff[k] = PBI_PAGINE[state.auto[k]].immagine(letti[state.auto[k]]); });
+          chiaviPbi.forEach(function (k) { if (!escluse[state.auto[k]]) imgsAll[attivo][k] = PBI_PAGINE[state.auto[k]].immagine(letti[state.auto[k]]); });
         });
       });
       // Power BI e NEXUS vanno avanti insieme; alla fine si guarda prima NEXUS: se non ha dati la mail non parte, qualunque cosa dica Power BI
@@ -3228,7 +3248,7 @@ kbd {
         return esitoPbi.then(function (e) {
           if (e) throw e;
           if (chiaviNexus.length) {
-            chiaviNexus.forEach(function (k) { imgsAll.eff[k] = { src: foto.src, ratio: foto.ratio }; });
+            chiaviNexus.forEach(function (k) { imgsAll[attivo][k] = { src: foto.src, ratio: foto.ratio }; });
             riepilogo.pagine.push('NEXUS');
           }
           return attesaNote;
@@ -3236,7 +3256,7 @@ kbd {
           // note del giorno: se non ce ne sono (riquadro senza colore, solo la scritta grigia) la sezione resta fuori
           var senzaNote = chiaviNote.length > 0 && (!note || note.colore < NEXUS_COLORE_MIN);
           if (chiaviNote.length && !senzaNote) {
-            chiaviNote.forEach(function (k) { imgsAll.eff[k] = { src: note.src, ratio: note.ratio }; });
+            chiaviNote.forEach(function (k) { imgsAll[attivo][k] = { src: note.src, ratio: note.ratio }; });
             riepilogo.pagine.push('NEXUS note');
           }
           if (senzaNote) riepilogo.pagine.push('NEXUS note esclusa: nessuna nota');
@@ -3260,10 +3280,10 @@ kbd {
       var a = cfg.modo === 'prova' ? (cfg.soloA || []) : indirizzi().ok;
       if (!a.length) throw new Error(cfg.modo === 'prova' ? 'Manca l\'indirizzo a cui mandare la prova.' : 'La lista mail è vuota: aggiungi i destinatari in DiMail e ricopia le impostazioni.');
       if (!cfg.mittente) throw new Error('Manca il mittente: collega Gmail nella pagina del Worker.');
-      var oggetto = (cfg.modo === 'prova' ? '[PROVA] ' : '') + (d(state.oggetto).trim() || 'REPORT EFFICIENZE');
+      var oggetto = (cfg.modo === 'prova' ? '[PROVA] ' : '') + (d(state.oggetto).trim() || modello(attivo).nome);
       var html = buildEmail('export'), testo = buildText(), allegati = [];
       chiavi(state).forEach(function (k, n) {
-        var im = imgsAll.eff[k];
+        var im = imgsAll[attivo][k];
         if (!im) return;
         if (html.indexOf(im.src) === -1) return;   // stessa immagine già agganciata a un altro riquadro
         var cid = 'riquadro' + (n + 1) + '@dimail';
