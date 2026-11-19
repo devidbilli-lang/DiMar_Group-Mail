@@ -259,7 +259,8 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .bar-gest + .bar-gest { border-top: 0; padding-top: 0; }
 .bar-gest input[type="email"] { width: auto; flex: 0 1 300px; min-width: 200px; }
 .bar-gest input[type="text"] { width: 9em; }
-.bar-gest .hint { flex: 1 1 220px; margin: 0; }
+.bar-gest .hint { flex: 1 1 100%; margin: 0; }
+.bar-gest-pulsanti { display: flex; flex-wrap: wrap; gap: 8px; }
 @media (max-width: 520px) { #mail { padding: 20px 18px; } }
 
 .howto { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 20px 28px; margin-top: 8px; }
@@ -507,13 +508,15 @@ kbd {
         <span class="lbl"><b id="p-nome"></b> · riquadri <span id="p-larg"></span> px<span id="p-zoom"></span></span>
         <div class="bar-actions">
           <button type="button" class="btn" id="svuota" disabled>Svuota riquadri</button>
-          <button type="button" class="btn" id="sped-tutti" hidden title="Compila da Power BI tutti i riquadri della scheda, con il giorno scelto nel pannello Power BI">Compila tutti i riquadri</button>
           <button type="button" class="btn primary" id="copy-mail">Copia mail per Gmail</button>
         </div>
         <div class="bar-gest">
           <label class="flabel" for="gest-email">La tua e-mail</label>
           <input type="email" id="gest-email" spellcheck="false" autocapitalize="off" autocomplete="email" placeholder="nome.cognome@dimargroup.com">
-          <button type="button" class="btn" id="auto-invia">Invia impostazioni al Worker</button>
+          <span class="bar-gest-pulsanti">
+            <button type="button" class="btn" id="sped-tutti" hidden title="Compila da Power BI tutti i riquadri della scheda, con il giorno scelto nel pannello Power BI">Compila tutti i riquadri</button>
+            <button type="button" class="btn" id="auto-invia">Invia impostazioni al Worker</button>
+          </span>
           <span class="hint" id="gest-stato"></span>
         </div>
         <div class="bar-gest" id="gest-codice-riga" hidden>
