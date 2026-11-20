@@ -253,10 +253,14 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .btn:disabled { opacity: .45; cursor: default; }
 
 .bar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-/* chi gestisce la mail: e-mail e invio al Worker, sotto i pulsanti */
-.bar-gest { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; border-top: 1px solid var(--line); padding-top: 10px; }
+/* chi gestisce la mail: e-mail e invio al Worker a sinistra, accesso a Power BI a destra, sotto i pulsanti */
+.bar-gest-blocco { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: stretch; border-top: 1px solid var(--line); padding-top: 10px; }
+.bar-gest-sx { flex: 1 1 420px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.bar-gest { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
 .bar-gest[hidden] { display: none; }
-.bar-gest + .bar-gest { border-top: 0; padding-top: 0; }
+.bar-ms { flex: 0 1 260px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; }
+.bar-ms[hidden] { display: none; }
+.bar-ms .hint { margin: 0; }
 .bar-gest input[type="email"] { width: auto; flex: 0 1 300px; min-width: 200px; }
 .bar-gest input[type="text"] { width: 9em; }
 .bar-gest .hint { flex: 1 1 100%; margin: 0; }
@@ -510,6 +514,8 @@ kbd {
           <button type="button" class="btn" id="svuota" disabled>Svuota riquadri</button>
           <button type="button" class="btn primary" id="copy-mail">Copia mail per Gmail</button>
         </div>
+        <div class="bar-gest-blocco">
+        <div class="bar-gest-sx">
         <div class="bar-gest">
           <label class="flabel" for="gest-email">La tua e-mail</label>
           <input type="email" id="gest-email" spellcheck="false" autocapitalize="off" autocomplete="email" placeholder="nome.cognome@dimargroup.com">
@@ -524,6 +530,14 @@ kbd {
           <input type="text" id="gest-codice" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
           <button type="button" class="btn primary" id="gest-conferma">Conferma</button>
           <button type="button" class="link" id="gest-rimanda">Rimanda il codice</button>
+        </div>
+        </div>
+        <div class="bar-ms" aria-label="Accesso a Power BI">
+          <span class="pbi-stato"><span class="pbi-dot" id="bar-ms-dot"></span><span id="bar-ms-stato">Power BI: non collegato</span></span>
+          <button type="button" class="btn primary" id="bar-ms-entra">Accedi con Microsoft</button>
+          <button type="button" class="btn" id="bar-ms-esci" hidden>Esci</button>
+          <span class="hint">Serve per «Compila tutti i riquadri» e per le anteprime con i dati.</span>
+        </div>
         </div>
       </div>
       <input type="file" id="f-file" accept="image/*" hidden>
@@ -1494,7 +1508,9 @@ kbd {
     } catch (e) { return ''; }
   }
 
+  var pbiAvvisi = false;   // accesso partito da sopra l'anteprima: l'esito si vede anche come avviso
   function pbiEsito(tipo, testo, valori) {
+    if (pbiAvvisi && (tipo === 'err' || tipo === 'ok')) { pbiAvvisi = false; toast(testo); }
     var el = $('#pbi-ris');
     el.hidden = false;
     el.className = 'pbi-ris' + (tipo === 'err' ? ' err' : tipo === 'ok' ? ' ok' : '');
@@ -1519,6 +1535,11 @@ kbd {
     $('#pbi-stato').textContent = dentro ? ('Collegato' + (pbiTok.utente ? ' come ' + pbiTok.utente : '')) : 'Non collegato';
     $('#pbi-login').hidden = dentro;
     $('#pbi-logout').hidden = !dentro;
+    // lo stesso accesso, anche sopra l'anteprima (l'ID dell'applicazione resta nel pannello Power BI)
+    $('#bar-ms-dot').className = 'pbi-dot' + (dentro ? ' ok' : '');
+    $('#bar-ms-stato').textContent = dentro ? 'Power BI: collegato' + (pbiTok.utente ? ' come ' + pbiTok.utente : '') : 'Power BI: non collegato';
+    $('#bar-ms-entra').hidden = dentro;
+    $('#bar-ms-esci').hidden = !dentro;
     $('#pbi-prova').disabled = !dentro || pbiOccupato;
     $('#pbi-compila').disabled = !dentro || pbiOccupato || !pbiScheda();
     // senza accesso Microsoft l'elenco si chiede al Worker, con l'e-mail di chi gestisce la mail
@@ -1699,7 +1720,7 @@ kbd {
     pbiEsito('info', 'Accesso in corso…');
     pbiToken({ grant_type: 'authorization_code', code: m.code, redirect_uri: pbiRedirect(), code_verifier: att.verifier }).then(function () {
       pbiDisegna();
-      pbiEsito('ok', 'Accesso riuscito. Ora premi «Prova collegamento».');
+      pbiEsito('ok', pbiAvvisi ? 'Accesso a Power BI riuscito: ora ' + (attivo === 'chanel' ? 'puoi premere «Compila tutti i riquadri».' : 'puoi compilare i riquadri dal pannello Power BI.') : 'Accesso riuscito. Ora premi «Prova collegamento».');
     }, function (e) {
       pbiDisegna();
       pbiEsito('err', e.message);
@@ -3650,6 +3671,12 @@ kbd {
     spedLeggiIndirizzo();
     $('#pbi-sped-indirizzo').addEventListener('input', function (e) { pbi.spedIndirizzo = e.target.value; spedLeggiIndirizzo(); pbiSalva(); });
     $('#pbi-login').addEventListener('click', pbiAccedi);
+    $('#bar-ms-entra').addEventListener('click', function () {
+      if (!GUID.test(pbi.clientId.trim())) { toast('Manca l\'ID dell\'applicazione Microsoft: arriva con le impostazioni del Worker, oppure lo scrive chi amministra DiMail nel pannello Power BI.'); return; }
+      pbiAvvisi = true;
+      pbiAccedi();
+    });
+    $('#bar-ms-esci').addEventListener('click', function () { $('#pbi-logout').click(); toast('Scollegato da Power BI in questa pagina.'); });
     $('#pbi-logout').addEventListener('click', function () {
       pbiTok = null; pbiSalvaTok(); pbiFineAttesa(); pbiDisegna();
       pbiEsito('info', 'Scollegato da questa pagina. L\'account Microsoft resta aperto nel browser.');
