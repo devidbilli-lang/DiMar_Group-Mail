@@ -229,10 +229,6 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 
 /* Anteprima */
 .preview-col { display: grid; gap: 16px; min-width: 0; }
-.bar {
-  display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
-  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
-}
 .subject { display: flex; gap: 10px; align-items: baseline; min-width: 0; flex: 1 1 260px; }
 #p-oggetto { font-weight: 600; overflow-wrap: anywhere; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -286,10 +282,9 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
   .wrap { max-width: 1780px; }
   .preview-col { grid-template-columns: minmax(0, 1fr) 340px; column-gap: 20px; align-items: start; }
   .preview-col > * { grid-column: 1; }
-  .preview-col > .bar { grid-column: 1 / -1; }
   /* la colonna resta in vista scorrendo l'anteprima, ma solo se entra tutta nella finestra (classe «ferma», messa dallo
      script): se è più alta scorre con la pagina, così non resta mai tagliata */
-  .preview-col > .colonna-dx { grid-column: 2; grid-row: 2; display: grid; gap: 16px; align-content: start; }
+  .preview-col > .colonna-dx { grid-column: 2; grid-row: 1; display: grid; gap: 16px; align-content: start; }
   .preview-col > .colonna-dx.ferma { position: sticky; top: 16px; }
   .colonna-dx > .comandi { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .comandi > .cmd-titolo { margin-bottom: 12px; }
@@ -502,9 +497,6 @@ kbd {
     </form>
 
     <section class="preview-col" aria-label="Anteprima della mail">
-      <div class="bar">
-        <span class="lbl"><b id="p-nome"></b> · riquadri <span id="p-larg"></span> px<span id="p-zoom"></span></span>
-      </div>
       <div class="colonna-dx" id="colonna-dx">
       <aside class="comandi" id="comandi" aria-label="Impostazioni account">
         <span class="big-label cmd-titolo">IMPOSTAZIONI ACCOUNT</span>
@@ -990,7 +982,6 @@ kbd {
         esc(M.nome) + (n ? ' <span class="foto">· ' + n + ' foto</span>' : '') + '</button>';
     }).join('');
     $('#pannello').setAttribute('aria-labelledby', 'tab-' + attivo);
-    $('#p-nome').textContent = modello(attivo).nome;
   }
   function attiva(id, daHash) {
     if (!modello(id) || id === attivo) return;
@@ -1032,7 +1023,6 @@ kbd {
     var k = Math.min(1, avail / natural);
     var z = k < 1 ? String(Math.floor(k * 1000) / 1000) : '';
     if (m.style.zoom !== z) m.style.zoom = z;
-    $('#p-zoom').textContent = k < 1 ? ' · ridotta al ' + Math.round(k * 100) + ' %' : '';
   }
   window.addEventListener('resize', fit);
 
@@ -4655,7 +4645,6 @@ kbd {
     try { localStorage.setItem(ALTRO_KEY, $('#altro').open ? '1' : '0'); } catch (e) {}
   });
 
-  $('#p-larg').textContent = BOX_W.toLocaleString('it-IT');
   fillFields();
   renderSezioni();
   update();
