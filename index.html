@@ -508,7 +508,7 @@ kbd {
             <button type="button" class="btn primary" id="bar-ms-entra">Accedi con Microsoft</button>
             <button type="button" class="btn" id="bar-ms-esci" hidden>Esci</button>
           </div>
-          <span class="hint">Il giorno, sopra l'anteprima, vale per «Compila tutti i riquadri» e per il pannello Power BI; l'accesso serve per le anteprime con i dati.</span>
+          <span class="hint">Il giorno, sopra l'anteprima, vale per «Compila tutti i riquadri» e per il pannello Power BI. Senza accesso Microsoft i dati li legge il Worker, con la tua e-mail qui sotto.</span>
         </div>
         <div class="cmd-blocco">
           <label class="flabel" for="gest-email">La tua e-mail</label>
@@ -1417,6 +1417,404 @@ kbd {
   // ---- Collegamento a Power BI ----
   // L'utente accede con il proprio account Microsoft in una finestrella (flusso con codice e PKCE: nella pagina non c'è
   // nessuna chiave) e la pagina legge i valori delle misure direttamente dal modello del report, con una query DAX.
+  /* ═══════ QUERY DI POWER BI · INIZIO ═══════
+     Tutte le query DAX di DiMail stanno in questo blocco, che è copiato tale e quale nel Worker. Chi gestisce una mail senza
+     accesso Microsoft chiede i valori al Worker con il nome della query e i suoi parametri: il Worker scrive la query con
+     questo stesso blocco e la esegue con il suo collegamento. I parametri entrano solo come testi tra virgolette (con le
+     virgolette raddoppiate) o come numeri interi: la forma della query non si può cambiare da fuori.
+     Se si cambia qualcosa qui, va ricopiato anche il Worker. */
+  var DAXQ = (function () {
+    function testo(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }
+    function elenco(l) { return '{' + (Array.isArray(l) ? l : []).map(testo).join(', ') + '}'; }
+    function intero(v) {
+      var n = Number(v);
+      if (!isFinite(n) || Math.round(n) !== n || Math.abs(n) > 100000) throw new Error('Parametro non valido.');
+      return n;
+    }
+    function testi(l) { return (Array.isArray(l) ? l : []).map(function (x) { return String(x); }); }
+    function dataDax(q) { return 'DATE(' + q.getFullYear() + ', ' + (q.getMonth() + 1) + ', ' + q.getDate() + ')'; }
+    function giornoDi(p) {
+      var g = (p && p.g) || {};
+      var x = { a: intero(g.a), m: intero(g.m), g: intero(g.g) };
+      if (x.a < 2000 || x.a > 2100 || x.m < 1 || x.m > 12 || x.g < 1 || x.g > 31) throw new Error('Giorno non valido.');
+      return x;
+    }
+    function pagina(tab, p) {
+      var id = String((p && p.pag) || '');
+      if (!Object.prototype.hasOwnProperty.call(tab, id)) throw new Error('Pagina sconosciuta.');
+      return tab[id];
+    }
+
+    // ── Costanti delle query (quelle del disegno restano in DiMail)
+    var K = {
+      // Pannello di Controllo: linee escluse dagli indicatori, card delle linee, reparti del Flusso Amont, indicatori in alto
+      NON_STABILIMENTO: ['Mazzei', 'Track&Trace', 'Flacca'],
+      NON_ASSEMBLAGGI: ['Preparazione DG', 'RMA', 'Taglio DG', 'Tingitura', 'Track&Trace', 'Mazzei', 'Flacca'],
+      // Card delle linee di assemblaggio, nell'ordine del Pannello di Controllo (quattro per riga, l'ultima accanto al Flusso
+      // Amont): t = titolo, l = valori di 'Presenze CF Worker'[Nome Linea]
+      LINEE: [
+        { t: 'Sara Visintin', l: ['Sara Visintin'] },
+        { t: 'Francesca Odorico', l: ['Francesca Odorico'] },
+        { t: 'Mario Todini', l: ['Mario Todini'] },
+        { t: 'Mario Todini 2.0', l: ['Mario Todini 2.0', 'Andrea Bianchi 2.0'] },
+        { t: 'Giorgia Strada', l: ['Giorgia Strada'] },
+        { t: 'Andrea Bianchi', l: ['Andrea Bianchi'] },
+        { t: 'Renato Cionco', l: ['Renato Cionco'] },
+        { t: 'Sonia Bandiera', l: ['Sonia Bandiera'] },
+        { t: 'Gian Marco Di Virginio', l: ['Gian Marco Di Virginio'] }
+      ],
+      REPARTI: [
+        { t: 'Taglio', m: "'capacityLedgerEntryAPI'[Efficienza_TG]" },
+        { t: 'Preparazione', m: "'capacityLedgerEntryAPI'[Efficienza_Prep]" },
+        { t: 'Tingitura', m: "'capacityLedgerEntryAPI'[Efficienza_TING]" },
+        { t: 'RMA', m: "'capacityLedgerEntryAPI'[Efficienza_RMA]" }
+      ],
+      PROVA: [
+        { k: 'Stabilimento', m: "'Presenze CF Worker'[Efficienza_Stabilimento]", f: '__LineeStabilimento' },
+        { k: 'Assemblaggi', m: "'Qualità CF Worker'[Efficienza]", f: '__LineeAssemblaggi' },
+        { k: 'Flusso Amont', m: '[GlobFA]' },
+        { k: 'Efficacia', m: '[Efficacia]' }
+      ],
+      // Pagine Efficienza LV ed Efficienza Chanel
+      BRAND: {
+        lv: {
+          giorni: 7,
+          brand: 'LV',
+          escluse: ['Mazzei'],   // linee fuori dai tre indicatori e dal grafico
+          linee: ['Sara Visintin', 'Francesca Odorico', 'Mario Todini', 'Mario Todini 2.0', 'Giorgia Strada', 'Mazzei'],   // card, nell'ordine della pagina
+          media: 'Efficienza_LV', oggi: 'Efficienza Oggi_LV',
+          oggiLinee: 'Presenze CF Worker'   // tabella su cui il visual «Efficienza Oggi» esclude le linee
+        },
+        cc: {
+          giorni: 7,
+          brand: 'Chanel',
+          escluse: ['Flacca'],
+          linee: ['Andrea Bianchi', 'Renato Cionco', 'Sonia Bandiera', 'Gian Marco Di Virginio', 'Flacca'],
+          media: 'Efficienza_CC', oggi: 'Efficienza Oggi_CC',
+          oggiLinee: 'Qualità CF Worker'
+        }
+      },
+      // Pagine di reparto (Taglio DG, Preparazione DG CC e LV, Tingitura, RMA)
+      REP: {
+        taglio: {
+          giorni: 7, linea: 'Taglio DG',
+          media: "'capacityLedgerEntryAPI'[Efficienza_TG]", oggi: "'capacityLedgerEntryAPI'[Efficienza Oggi_TG]",
+          // operatori: per giorno (colonne del grafico) e media del periodo (card)
+          opGiorno: "CALCULATE(AVERAGE('Presenze CF Worker'[N° Operatori]))", opMedia: "AVERAGE('Presenze CF Worker'[N° Operatori])",
+          soloCon: null,          // misura che deve essere > 0 perché una data conti nel cursore del periodo
+          reparto: 'taglio', brandAttivita: null,   // filtri della tabella delle attività (con brandAttivita compare la colonna Brand)
+          brandRighe: null        // filtro Brand della tabella Data · Codice · Qtà · TC
+        },
+        prepcc: {
+          giorni: 7, linea: 'Preparazione DG',
+          media: "'capacityLedgerEntryAPI'[Efficienza_Prep_CC]", oggi: "'capacityLedgerEntryAPI'[Efficienza Oggi_PRE_CC]",
+          opGiorno: "'Presenze CF Worker'[Operatori_PreCC]", opMedia: "'Presenze CF Worker'[Media_Operatori_PreCC]",
+          soloCon: "'Presenze CF Worker'[Operatori_PreCC]",
+          reparto: 'prep', brandAttivita: 'Chanel',
+          brandRighe: 'CC'
+        },
+        preplv: {
+          giorni: 7, linea: 'Preparazione DG',
+          media: "'capacityLedgerEntryAPI'[Efficienza_Prep_LV]", oggi: "'capacityLedgerEntryAPI'[Efficienza Oggi_PRE_LV]",
+          opGiorno: "'Presenze CF Worker'[Operatori_PreLV]", opMedia: "'Presenze CF Worker'[Media_Operatori_PreLV]",
+          soloCon: null,
+          reparto: 'prep', brandAttivita: 'LV',
+          brandRighe: 'LV'
+        },
+        ting: {
+          giorni: 7, linea: 'Tingitura',
+          media: "'capacityLedgerEntryAPI'[Efficienza_TING]", oggi: "'capacityLedgerEntryAPI'[Efficienza Oggi_TING]",
+          opGiorno: "CALCULATE(AVERAGE('Presenze CF Worker'[N° Operatori]))", opMedia: "AVERAGE('Presenze CF Worker'[N° Operatori])",
+          soloCon: null,
+          reparto: 'tintura', brandAttivita: null,
+          brandRighe: null
+        },
+        rma: {
+          giorni: 7, linea: 'RMA',
+          media: "'capacityLedgerEntryAPI'[Efficienza_RMA]", oggi: "'capacityLedgerEntryAPI'[Efficienza Oggi_RMA]",
+          opGiorno: "CALCULATE(AVERAGE('Presenze CF Worker'[N° Operatori]))", opMedia: "AVERAGE('Presenze CF Worker'[N° Operatori])",
+          soloCon: null,
+          reparto: 'rma', brandAttivita: null,
+          brandRighe: null
+        }
+      },
+      // Ore Spedite Chanel (CC_Spedito)
+      ORE: {
+        area: 'VT-MAG-PF', ov: 'V-VT', ddt: 'V-DDT-CC-VT',
+        collezioniEscluse: ['', '26A PRESSE', '26A PT', '26B PT', '26K PT', '26M PRESSE', '26M PT', '26P PT', '26S PT', '27C PRESSE', '27C PT', '27M PRESSE', '27P CD',
+          '26A RIPARAZIONI', '26B RIPARAZIONI', '26C RIPARAZIONI', '26K RIPARZIONI', '26M RIPARAZIONI', '26P RIPARAZIONI', '26S RIPARAZIONI', '27P PRESSE']
+      },
+      // Ore Spedite LV (LV_Spedito)
+      LVS: { stab: ['Floriano', 'Valentano'], ddt: ['V-DDT-LV-FL', 'V-DDT-LV-VT'], pf: 'PF' },
+      // Performance Spedizioni Chanel (CHANEL-AGGIORNAMENTO CONSEGNE)
+      SPED: {
+        pf: 'PF', ddt: 'V-DDT-CC-VT',
+        // le collezioni che il pulsante «Collezione» della pagina non mostra (prototipi, presse, riparazioni, SAV)
+        collezioniEscluse: ['', '26A PRESSE', '26A PT', '26A RIPARAZIONI', '26B PT', '26B RIPARAZIONI', '26C PT', '26C RIPARAZIONI', '26K PT', '26K RIPARZIONI',
+          '26M PRESSE', '26M PT', '26M RIPARAZIONI', '26P PT', '26P RIPARAZIONI', '26S PT', '26S RIPARAZIONI', '27C PRESSE', '27C PT', '27C RIPARAZIONI',
+          '27M PT', '27P CD', '27P PRESSE', '27P PT', 'SAV', '27M PRESSE']
+      }
+    };
+
+    // ── Pannello di Controllo: tutti i valori del giorno con una sola query. Stessi filtri degli oggetti visivi del
+    // pannello (da «Copia query» dell'Analizzatore prestazioni): il giorno come filtro di pagina; Stabilimento e
+    // Assemblaggi escludono ciascuno un proprio elenco di linee; ogni card filtra le proprie linee.
+    function pannello(p) {
+      var g = giornoDi(p);
+      function escluse(nome, linee) {
+        return 'VAR ' + nome + " = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Nome Linea])), NOT('Presenze CF Worker'[Nome Linea] IN " + elenco(linee) + '))\n';
+      }
+      var col = [];
+      K.PROVA.forEach(function (x) { col.push([x.k, 'CALCULATE(' + x.m + ', __Giorno' + (x.f ? ', ' + x.f : '') + ')']); });
+      K.LINEE.forEach(function (c, n) {
+        var f = "TREATAS(" + elenco(c.l) + ", 'Presenze CF Worker'[Nome Linea])";
+        col.push(['L' + n + 'E', "CALCULATE('Qualità CF Worker'[Efficienza], __Giorno, " + f + ')']);
+        col.push(['L' + n + 'C', "CALCULATE('Qualità CF Worker'[Efficacia], __Giorno, " + f + ')']);
+      });
+      K.REPARTI.forEach(function (r, n) { col.push(['R' + n, 'CALCULATE(' + r.m + ', __Giorno)']); });
+      return 'DEFINE\n'
+        + "VAR __Giorno = TREATAS({DATE(" + g.a + ', ' + g.m + ', ' + g.g + ")}, 'Presenze CF Worker'[Data])\n"
+        + escluse('__LineeStabilimento', K.NON_STABILIMENTO)
+        + escluse('__LineeAssemblaggi', K.NON_ASSEMBLAGGI)
+        + 'EVALUATE ROW(\n' + col.map(function (c) { return '"' + c[0] + '", ' + c[1]; }).join(',\n') + '\n)';
+    }
+
+    // ── Efficienza LV / Chanel: stessi filtri degli oggetti visivi della pagina (linee escluse, periodo, brand)
+    function brandDef(p) {
+      var P = pagina(K.BRAND, p), g = giornoDi(p);
+      var dal = new Date(g.a, g.m - 1, g.g - P.giorni), fine = new Date(g.a, g.m - 1, g.g + 1);
+      return 'DEFINE\n'
+        + "VAR __Linee = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Nome Linea])), NOT('Presenze CF Worker'[Nome Linea] IN " + elenco(P.escluse) + '))\n'
+        + "VAR __LineeOggi = FILTER(KEEPFILTERS(VALUES('" + P.oggiLinee + "'[Nome Linea])), NOT('" + P.oggiLinee + "'[Nome Linea] IN " + elenco(P.escluse) + '))\n'
+        + "VAR __Periodo = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Data])), AND('Presenze CF Worker'[Data] >= " + dataDax(dal) + ", 'Presenze CF Worker'[Data] < " + dataDax(fine) + '))\n'
+        + "VAR __Brand = TREATAS(" + elenco([P.brand]) + ", 'Qualità CF Worker'[Brand])\n";
+    }
+    function brandValori(p) {
+      var P = pagina(K.BRAND, p);
+      var col = [
+        ['Media', "CALCULATE('Presenze CF Worker'[" + P.media + "], __Linee, __Periodo, __Brand)"],
+        ['Efficacia', "CALCULATE('Qualità CF Worker'[Efficacia], __Linee, __Periodo, __Brand)"],
+        ['Oggi', "CALCULATE('Presenze CF Worker'[" + P.oggi + "], __LineeOggi, __Periodo, __Brand)"],
+        ['MinData', "CALCULATE(MIN('Presenze CF Worker'[Data]), __Brand)"],
+        ['MaxData', "CALCULATE(MAX('Presenze CF Worker'[Data]), __Brand)"]
+      ];
+      P.linee.forEach(function (nome, n) {
+        var f = "TREATAS(" + elenco([nome]) + ", 'Presenze CF Worker'[Nome Linea])";
+        col.push(['L' + n + 'E', "CALCULATE('Qualità CF Worker'[Efficienza], " + f + ', __Periodo, __Brand)']);
+        col.push(['L' + n + 'C', "CALCULATE('Qualità CF Worker'[Efficacia], " + f + ', __Periodo, __Brand)']);
+      });
+      return brandDef(p) + 'EVALUATE ROW(\n' + col.map(function (c) { return '"' + c[0] + '", ' + c[1]; }).join(',\n') + '\n)';
+    }
+    function brandTrend(p) {
+      var P = pagina(K.BRAND, p);
+      return brandDef(p) + "EVALUATE SUMMARIZECOLUMNS('Presenze CF Worker'[Data], __Linee, __Periodo, __Brand,\n"
+        + "\"Efficienza\", 'Presenze CF Worker'[" + P.media + "],\n\"Efficacia\", 'Qualità CF Worker'[Efficacia],\n\"Target\", IGNORE(CALCULATE(SUM('Target'[Target]))))\n"
+        + "ORDER BY 'Presenze CF Worker'[Data]";
+    }
+
+    // ── Pagine di reparto
+    function repDef(p) {
+      var P = pagina(K.REP, p), g = giornoDi(p);
+      var dal = new Date(g.a, g.m - 1, g.g - P.giorni), fine = new Date(g.a, g.m - 1, g.g + 1);
+      return 'DEFINE\n'
+        + "VAR __Periodo = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Data])), AND('Presenze CF Worker'[Data] >= " + dataDax(dal) + ", 'Presenze CF Worker'[Data] < " + dataDax(fine) + '))\n'
+        + "VAR __Linea = TREATAS(" + elenco([P.linea]) + ", 'Presenze CF Worker'[Nome Linea])\n";
+    }
+    function repValori(p) {
+      var P = pagina(K.REP, p);
+      return repDef(p) + 'EVALUATE ROW(\n'
+        + '"Media", CALCULATE(' + P.media + ', __Periodo, __Linea),\n'
+        + '"Oggi", CALCULATE(' + P.oggi + ', __Periodo, __Linea),\n'
+        + '"Operatori", CALCULATE(' + P.opMedia + ', __Periodo, __Linea),\n'
+        + (P.soloCon
+          ? "\"MinData\", MINX(FILTER(CALCULATETABLE(VALUES('Presenze CF Worker'[Data]), __Linea), CALCULATE(" + P.soloCon + ", __Linea) > 0), 'Presenze CF Worker'[Data]),\n"
+            + "\"MaxData\", MAXX(FILTER(CALCULATETABLE(VALUES('Presenze CF Worker'[Data]), __Linea), CALCULATE(" + P.soloCon + ", __Linea) > 0), 'Presenze CF Worker'[Data])\n)"
+          : "\"MinData\", CALCULATE(MIN('Presenze CF Worker'[Data]), __Linea),\n"
+            + "\"MaxData\", CALCULATE(MAX('Presenze CF Worker'[Data]), __Linea)\n)");
+    }
+    function repTrend(p) {
+      var P = pagina(K.REP, p);
+      return repDef(p) + "EVALUATE SUMMARIZECOLUMNS('Presenze CF Worker'[Data], __Periodo, __Linea,\n"
+        + '"Operatori", ' + P.opGiorno + ",\n\"Target\", IGNORE(CALCULATE(SUM('Target'[Target]))),\n\"Efficienza\", " + P.media + ")\n"
+        + "ORDER BY 'Presenze CF Worker'[Data]";
+    }
+    function repAttivita(p) {
+      var P = pagina(K.REP, p);
+      return repDef(p) + "VAR __Reparto = TREATAS(" + elenco([P.reparto]) + ", 'Inserimento Attività CF Worker'[Reparto])\n"
+        + (P.brandAttivita ? "VAR __BrandAtt = TREATAS(" + elenco([P.brandAttivita]) + ", 'Inserimento Attività CF Worker'[Brand])\n" : '')
+        + "EVALUATE SUMMARIZECOLUMNS('Inserimento Attività CF Worker'[Data], 'Inserimento Attività CF Worker'[Tipologia], "
+        + (P.brandAttivita ? "'Inserimento Attività CF Worker'[Brand], __Reparto, __BrandAtt" : '__Reparto') + ", __Periodo, __Linea,\n"
+        + "\"Tempo\", CALCULATE(SUM('Inserimento Attività CF Worker'[Tempo (min)])))\n"
+        + "ORDER BY 'Inserimento Attività CF Worker'[Data] DESC, 'Inserimento Attività CF Worker'[Tipologia]"
+        + (P.brandAttivita ? ", 'Inserimento Attività CF Worker'[Brand]" : '');
+    }
+    // Tabella Data · Codice · Qtà · TC: le righe più recenti (nella mail ne entrano una decina)
+    function repRighe(p) {
+      var P = pagina(K.REP, p);
+      return repDef(p) + (P.brandRighe ? "VAR __BrandRighe = TREATAS(" + elenco([P.brandRighe]) + ", 'capacityLedgerEntryAPI'[Brand])\n" : '')
+        + "VAR __Righe = SUMMARIZECOLUMNS('capacityLedgerEntryAPI'[Data], 'capacityLedgerEntryAPI'[Codice], 'capacityLedgerEntryAPI'[TC], "
+        + (P.brandRighe ? '__BrandRighe, ' : '') + "__Periodo, __Linea,\n"
+        + "\"Qta\", CALCULATE(SUM('capacityLedgerEntryAPI'[OutputQuantity])))\n"
+        + "EVALUATE TOPN(60, __Righe, 'capacityLedgerEntryAPI'[Data], 0, 'capacityLedgerEntryAPI'[Codice], 1, 'capacityLedgerEntryAPI'[TC], 1)\n"
+        + "ORDER BY 'capacityLedgerEntryAPI'[Data] DESC, 'capacityLedgerEntryAPI'[Codice], 'capacityLedgerEntryAPI'[TC]";
+    }
+
+    // ── Ore Spedite Chanel: la settimana del giorno, poi valori, giorni, collezioni e righe di quella settimana.
+    // p.togli: collezioni tolte a mano in DiMail, che si sommano a quelle che la pagina esclude già.
+    function oreSett(p) {
+      var g = giornoDi(p);
+      return "EVALUATE ROW(\"Sett\", CALCULATE(MIN('Calendario'[Settimana]), 'Calendario'[Date] = " + dataDax(new Date(g.a, g.m - 1, g.g)) + '))';
+    }
+    var ORE_FILTRI = '__Anno, __Sett, __Area, __Coll, __OV, __DDT';
+    function oreDef(p) {
+      var P = K.ORE, g = giornoDi(p), sett = intero(p.sett);
+      return 'DEFINE\n'
+        + "VAR __Anno = FILTER(KEEPFILTERS(VALUES('Calendario'[Date])), AND('Calendario'[Date] >= DATE(" + g.a + ", 1, 1), 'Calendario'[Date] < DATE(" + (g.a + 1) + ', 1, 1)))\n'
+        + "VAR __Sett = TREATAS({" + sett + "}, 'Calendario'[Settimana])\n"
+        + "VAR __Area = TREATAS(" + elenco([P.area]) + ", 'salesLine'[Area])\n"
+        + "VAR __CollTutte = FILTER(KEEPFILTERS(VALUES('salesShipmentLine'[Collezione])), NOT('salesShipmentLine'[Collezione] IN " + elenco(P.collezioniEscluse) + '))\n'
+        + "VAR __Coll = FILTER(KEEPFILTERS(VALUES('salesShipmentLine'[Collezione])), NOT('salesShipmentLine'[Collezione] IN " + elenco(P.collezioniEscluse.concat(testi(p.togli))) + '))\n'
+        + "VAR __OV = TREATAS(" + elenco([P.ov]) + ", 'salesLine'[Tipologia OV])\n"
+        + "VAR __DDT = TREATAS(" + elenco([P.ddt]) + ", 'salesShipmentLine'[Tipologia DDT])\n";
+    }
+    function oreValori(p) {
+      var f = ORE_FILTRI;
+      return oreDef(p) + 'EVALUATE ROW(\n'
+        + "\"Ore\", CALCULATE('Calendario'[Valentano_CC], " + f + '),\n'
+        + "\"Qta\", CALCULATE(SUM('salesShipmentLine'[Qtà]), " + f + '),\n'
+        + "\"Inizio\", CALCULATE('Calendario'[Start Collezione_SH], " + f + '),\n'
+        + "\"Fine\", CALCULATE(MIN('Scadenze Chanel'[SCADENZA INIZIALE]), " + f + '))';
+    }
+    function oreGiorni(p) {
+      return oreDef(p) + "EVALUATE SUMMARIZECOLUMNS('Calendario'[Date], " + ORE_FILTRI + ",\n"
+        + "\"Ore\", 'Calendario'[Valentano_CC],\n\"Qta\", CALCULATE(SUM('salesShipmentLine'[Qtà])))\nORDER BY 'Calendario'[Date]";
+    }
+    function oreColl(p) {
+      return oreDef(p) + "EVALUATE CALCULATETABLE(VALUES('salesShipmentLine'[Collezione]), " + ORE_FILTRI.replace('__Coll', '__CollTutte') + ")\nORDER BY 'salesShipmentLine'[Collezione]";
+    }
+    function oreRighe(p) {
+      return oreDef(p) + "VAR __Righe = SUMMARIZECOLUMNS('salesShipmentLine'[Articolo + Colore], 'salesLine'[Descrizione Commerciale], " + ORE_FILTRI + ",\n"
+        + "\"Qta\", CALCULATE(SUM('salesShipmentLine'[Qtà])),\n\"Ore\", 'Calendario'[Valentano_CC])\n"
+        + "EVALUATE TOPN(200, __Righe, [Qta], 0, 'salesShipmentLine'[Articolo + Colore], 1, 'salesLine'[Descrizione Commerciale], 1)\n"
+        + "ORDER BY [Qta] DESC, 'salesShipmentLine'[Articolo + Colore], 'salesLine'[Descrizione Commerciale]";
+    }
+
+    // ── Ore Spedite LV: la settimana del giorno (dalla tabella del report), poi valori e giorni
+    function lvSett(p) {
+      var g = giornoDi(p);
+      return "EVALUATE ROW(\"Sett\", CALCULATE(MIN('CHEMIN DiMar'[Week]), 'CHEMIN DiMar'[Jour] = " + dataDax(new Date(g.a, g.m - 1, g.g)) + '))';
+    }
+    var LV_FILTRI = '__Sett, __Jour, __Stab, __AnnoS, __Rep, __Feriali, __AnnoC';
+    function lvDef(p) {
+      var P = K.LVS, g = giornoDi(p), sett = intero(p.sett);
+      return 'DEFINE\n'
+        + "VAR __Sett = TREATAS({" + sett + "}, 'CHEMIN DiMar'[Week])\n"
+        + "VAR __Jour = FILTER(KEEPFILTERS(VALUES('CHEMIN DiMar'[Jour])), AND('CHEMIN DiMar'[Jour] >= DATE(" + g.a + ", 1, 1), 'CHEMIN DiMar'[Jour] < DATE(" + (g.a + 1) + ', 1, 1)))\n'
+        + "VAR __Stab = TREATAS(" + elenco(P.stab) + ", 'salesShipmentLine'[Stabilimento])\n"
+        + "VAR __AnnoS = TREATAS({" + g.a + "}, 'salesShipmentLine'[Anno])\n"
+        + "VAR __Rep = FILTER(KEEPFILTERS(VALUES('capacityLedgerEntryAPI'[DiMar_Reparti])), NOT('capacityLedgerEntryAPI'[DiMar_Reparti] IN {BLANK()}))\n"
+        + "VAR __Feriali = FILTER(KEEPFILTERS(VALUES('CHEMIN DiMar'[giorno/settimana])), NOT('CHEMIN DiMar'[giorno/settimana] IN {\"domenica\", \"sabato\", BLANK()}))\n"
+        + "VAR __AnnoC = TREATAS({" + g.a + "}, 'CHEMIN DiMar'[Anno])\n"
+        + "VAR __DDT = TREATAS(" + elenco(P.ddt) + ", 'salesShipmentLine'[Tipologia DDT])\n"
+        + "VAR __PF = TREATAS(" + elenco([P.pf]) + ", 'salesShipmentLine'[genProdPostingGroup])\n";
+    }
+    function lvValori(p) {
+      var f = LV_FILTRI;
+      return lvDef(p) + 'EVALUATE ROW(\n'
+        + "\"Val\", CALCULATE('CHEMIN DiMar'[Valentano], " + f + '),\n'
+        + "\"Flo\", CALCULATE('CHEMIN DiMar'[Floriano], " + f + '),\n'
+        + "\"Tot\", CALCULATE(SUM('CHEMIN DiMar'[Totale Ore Spedite]), " + f + ', __DDT, __PF),\n'
+        + "\"Href\", CALCULATE(SUM('CHEMIN DiMar'[Href]), " + f + ', __DDT, __PF))';
+    }
+    function lvGiorni(p) {
+      return lvDef(p) + "EVALUATE SUMMARIZECOLUMNS('CHEMIN DiMar'[Jour], " + LV_FILTRI + ",\n"
+        + "\"Flo\", 'CHEMIN DiMar'[Floriano],\n\"Val\", 'CHEMIN DiMar'[Valentano],\n\"Href\", CALCULATE(SUM('CHEMIN DiMar'[Href])))\nORDER BY 'CHEMIN DiMar'[Jour]";
+    }
+
+    // ── Performance Spedizioni Chanel: settimana del report, coppie collezione · descrizione, valori dei temi, articoli
+    function spedSett(p) {
+      var c = String((p && p.calcolata) || '');
+      return "EVALUATE TOPN(1, CALCULATETABLE(FILTER(VALUES('Chanel Reactualizzato'[Week]), 'Chanel Reactualizzato'[Week] <= " + testo(c) + "), TREATAS(" + elenco([c.slice(0, 4)]) + ", 'Chanel Reactualizzato'[Anno])), 'Chanel Reactualizzato'[Week], DESC)";
+    }
+    function spedDef(p) {
+      return 'DEFINE\n'
+        + "VAR __Sett = TREATAS(" + elenco([String(p.sett)]) + ", 'Chanel Reactualizzato'[Week])\n"
+        + "VAR __Anno = TREATAS(" + elenco([String(p.anno)]) + ", 'Chanel Reactualizzato'[Anno])\n"
+        + "VAR __PF = TREATAS(" + elenco([K.SPED.pf]) + ", 'salesLine'[Categoria Prodotto])\n";
+    }
+    function spedCoppie(p) {
+      return spedDef(p)
+        + "VAR __Coll = FILTER(KEEPFILTERS(VALUES('salesLine'[Collezione])), NOT('salesLine'[Collezione] IN " + elenco(K.SPED.collezioniEscluse) + '))\n'
+        + "EVALUATE CALCULATETABLE(SUMMARIZE('salesLine', 'salesLine'[Collezione], 'salesLine'[Descrizione Commerciale]), KEEPFILTERS(__Coll), KEEPFILTERS(__Sett), KEEPFILTERS(__Anno), KEEPFILTERS(__PF))\n"
+        + "ORDER BY 'salesLine'[Collezione], 'salesLine'[Descrizione Commerciale]";
+    }
+    // valori dei riquadri in alto, tutti i temi in una query sola (p.temi: [{ coll, desc: [...] }])
+    function spedValori(p) {
+      var temi = Array.isArray(p.temi) ? p.temi : [];
+      if (!temi.length || temi.length > 60) throw new Error('Temi non validi.');
+      var defTemi = spedDef(p) + "VAR __DDT = TREATAS(" + elenco([K.SPED.ddt]) + ", 'salesShipmentLine'[Tipologia DDT])\n";
+      var righe = temi.map(function (t, i) {
+        defTemi += "VAR __C" + i + " = TREATAS(" + elenco([String(t && t.coll)]) + ", 'salesLine'[Collezione])\n"
+          + "VAR __D" + i + " = TREATAS(" + elenco(testi(t && t.desc)) + ", 'salesLine'[Descrizione Commerciale])\n";
+        var f = '__C' + i + ', __D' + i + ', __Sett, __Anno, __PF';
+        return 'ROW("T", ' + i + ', "Qta", CALCULATE(SUM(\'salesLine\'[Qtà]), ' + f + '), "PSped", CALCULATE(\'salesLine\'[% Spedita], ' + f + '), '
+          + '"PObR", CALCULATE(\'salesLine\'[% ObiettivoR], ' + f + '), "Sped", CALCULATE(SUM(\'salesLine\'[Qtà Spedita]), ' + f + ', __DDT), '
+          + '"ObAtt", CALCULATE(SUM(\'Chanel Reactualizzato\'[CC_Reactualizzato]), ' + f + ', __DDT))';
+      });
+      return defTemi + 'EVALUATE ' + (righe.length > 1 ? 'UNION(\n' + righe.join(',\n') + ')' : righe[0]);
+    }
+    // colonne del grafico: articolo per articolo, per tutte le collezioni e descrizioni dei temi (p.colls, p.descs)
+    function spedArticoli(p) {
+      return spedDef(p)
+        + "VAR __Coll = TREATAS(" + elenco(testi(p.colls)) + ", 'salesLine'[Collezione])\n"
+        + "VAR __Desc = TREATAS(" + elenco(testi(p.descs)) + ", 'salesLine'[Descrizione Commerciale])\n"
+        + "EVALUATE SUMMARIZECOLUMNS('salesLine'[Collezione], 'salesLine'[SKU + Colore], 'salesLine'[Descrizione Commerciale], __Coll, __Desc, __Sett, __Anno, __PF,\n"
+        + "\"Qta\", CALCULATE(SUM('salesLine'[Qtà])),\n\"Sped\", CALCULATE(SUM('salesLine'[Qtà Spedita])),\n\"ObAtt\", CALCULATE(SUM('Chanel Reactualizzato'[CC_Reactualizzato])))";
+    }
+
+    // Le query per nome. pagine: le pagine di DiMail che le usano (per sapere a quale scheda servono); quale: il modello
+    // da interrogare ('' = quello del report delle efficienze, poi 'ore', 'orelv', 'sped' come in «Avanzate»).
+    var EFF = ['pannello', 'lv', 'cc', 'taglio', 'prepcc', 'preplv', 'ting', 'rma'];
+    var Q = {
+      pannello: { pagine: ['pannello'], quale: '', fai: pannello },
+      brandValori: { pagine: ['lv', 'cc'], quale: '', fai: brandValori },
+      brandTrend: { pagine: ['lv', 'cc'], quale: '', fai: brandTrend },
+      repValori: { pagine: ['taglio', 'prepcc', 'preplv', 'ting', 'rma'], quale: '', fai: repValori },
+      repTrend: { pagine: ['taglio', 'prepcc', 'preplv', 'ting', 'rma'], quale: '', fai: repTrend },
+      repAttivita: { pagine: ['taglio', 'prepcc', 'preplv', 'ting', 'rma'], quale: '', fai: repAttivita },
+      repRighe: { pagine: ['taglio', 'prepcc', 'preplv', 'ting', 'rma'], quale: '', fai: repRighe },
+      oreSett: { pagine: ['ore'], quale: 'ore', fai: oreSett },
+      oreValori: { pagine: ['ore'], quale: 'ore', fai: oreValori },
+      oreGiorni: { pagine: ['ore'], quale: 'ore', fai: oreGiorni },
+      oreColl: { pagine: ['ore'], quale: 'ore', fai: oreColl },
+      oreRighe: { pagine: ['ore'], quale: 'ore', fai: oreRighe },
+      lvSett: { pagine: ['orelv'], quale: 'orelv', fai: lvSett },
+      lvValori: { pagine: ['orelv'], quale: 'orelv', fai: lvValori },
+      lvGiorni: { pagine: ['orelv'], quale: 'orelv', fai: lvGiorni },
+      spedSett: { pagine: ['sped'], quale: 'sped', fai: spedSett },
+      spedCoppie: { pagine: ['sped'], quale: 'sped', fai: spedCoppie },
+      spedValori: { pagine: ['sped'], quale: 'sped', fai: spedValori },
+      spedArticoli: { pagine: ['sped'], quale: 'sped', fai: spedArticoli }
+    };
+    // Le pagine che ogni scheda (report del Worker) può leggere: le stesse che DiMail propone in quella scheda
+    var PAGINE_DI = {
+      eff: EFF.concat(['ore', 'orelv']),
+      ore: EFF.concat(['ore', 'orelv']),
+      lvsped: EFF.concat(['ore', 'orelv']),
+      chanel: ['sped', 'ore']
+    };
+    // La pagina di una richiesta { q, p }: quella indicata in p.pag se la query serve più pagine, altrimenti l'unica
+    function paginaDi(nome, p) {
+      var x = Q[nome];
+      if (!x) return '';
+      if (x.pagine.length === 1) return x.pagine[0];
+      var id = String((p && p.pag) || '');
+      return x.pagine.indexOf(id) !== -1 ? id : '';
+    }
+    return { K: K, Q: Q, PAGINE_DI: PAGINE_DI, paginaDi: paginaDi };
+  })();
+  /* ═══════ QUERY DI POWER BI · FINE ═══════ */
+
   var PBI_KEY = 'dimail-pbi-v1', PBI_TOK = 'dimail-pbi-token', PBI_RIT = 'dimail-pbi-ritorno';
   var PBI_DEF = {
     clientId: '',
@@ -1435,33 +1833,9 @@ kbd {
   var PBI_SCOPE = 'https://analysis.windows.net/powerbi/api/Dataset.Read.All https://analysis.windows.net/powerbi/api/Report.Read.All offline_access openid profile';
   var GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   // Valori letti dalla prova: gli stessi quattro indicatori in alto nel Pannello di Controllo, per il giorno scelto
-  var PBI_NON_STABILIMENTO = ['Mazzei', 'Track&Trace', 'Flacca'];
-  var PBI_NON_ASSEMBLAGGI = ['Preparazione DG', 'RMA', 'Taglio DG', 'Tingitura', 'Track&Trace', 'Mazzei', 'Flacca'];
-  // Card delle linee di assemblaggio, nell'ordine del Pannello di Controllo (quattro per riga, l'ultima accanto al Flusso Amont): t = titolo, l = valori di 'Presenze CF Worker'[Nome Linea]
-  var PBI_LINEE = [
-    { t: 'Sara Visintin', l: ['Sara Visintin'] },
-    { t: 'Francesca Odorico', l: ['Francesca Odorico'] },
-    { t: 'Mario Todini', l: ['Mario Todini'] },
-    { t: 'Mario Todini 2.0', l: ['Mario Todini 2.0', 'Andrea Bianchi 2.0'] },
-    { t: 'Giorgia Strada', l: ['Giorgia Strada'] },
-    { t: 'Andrea Bianchi', l: ['Andrea Bianchi'] },
-    { t: 'Renato Cionco', l: ['Renato Cionco'] },
-    { t: 'Sonia Bandiera', l: ['Sonia Bandiera'] },
-    { t: 'Gian Marco Di Virginio', l: ['Gian Marco Di Virginio'] }
-  ];
-  // Reparti del Flusso Amont
-  var PBI_REPARTI = [
-    { t: 'Taglio', m: "'capacityLedgerEntryAPI'[Efficienza_TG]" },
-    { t: 'Preparazione', m: "'capacityLedgerEntryAPI'[Efficienza_Prep]" },
-    { t: 'Tingitura', m: "'capacityLedgerEntryAPI'[Efficienza_TING]" },
-    { t: 'RMA', m: "'capacityLedgerEntryAPI'[Efficienza_RMA]" }
-  ];
-  var PBI_PROVA = [
-    { k: 'Stabilimento', m: "'Presenze CF Worker'[Efficienza_Stabilimento]", f: '__LineeStabilimento' },
-    { k: 'Assemblaggi', m: "'Qualità CF Worker'[Efficienza]", f: '__LineeAssemblaggi' },
-    { k: 'Flusso Amont', m: '[GlobFA]' },
-    { k: 'Efficacia', m: '[Efficacia]' }
-  ];
+  var PBI_NON_STABILIMENTO = DAXQ.K.NON_STABILIMENTO, PBI_NON_ASSEMBLAGGI = DAXQ.K.NON_ASSEMBLAGGI;
+  // Card delle linee (t = titolo), reparti del Flusso Amont e indicatori in alto: stanno nel blocco delle query
+  var PBI_LINEE = DAXQ.K.LINEE, PBI_REPARTI = DAXQ.K.REPARTI, PBI_PROVA = DAXQ.K.PROVA;
 
   var pbi = clone(PBI_DEF);
   try {
@@ -1581,15 +1955,17 @@ kbd {
   }
   function pbiDisegna() {
     var dentro = !!pbiTok;
-    $('#pbi-dot').className = 'pbi-dot' + (dentro ? ' ok' : '');
-    $('#pbi-stato').textContent = dentro ? ('Collegato' + (pbiTok.utente ? ' come ' + pbiTok.utente : '')) : 'Non collegato';
+    // senza accesso Microsoft, con l'e-mail di chi gestisce la mail, Power BI lo legge il Worker
+    var tramite = !dentro && gestPronta();
+    $('#pbi-dot').className = 'pbi-dot' + (dentro || tramite ? ' ok' : '');
+    $('#pbi-stato').textContent = dentro ? ('Collegato' + (pbiTok.utente ? ' come ' + pbiTok.utente : '')) : tramite ? 'Letto dal Worker' : 'Non collegato';
     // l'accesso è solo nel riquadro dei comandi (l'ID dell'applicazione resta nel pannello Power BI)
-    $('#bar-ms-dot').className = 'pbi-dot' + (dentro ? ' ok' : '');
-    $('#bar-ms-stato').textContent = dentro ? 'Power BI: collegato' + (pbiTok.utente ? ' come ' + pbiTok.utente : '') : 'Power BI: non collegato';
+    $('#bar-ms-dot').className = 'pbi-dot' + (dentro || tramite ? ' ok' : '');
+    $('#bar-ms-stato').textContent = dentro ? 'Power BI: collegato' + (pbiTok.utente ? ' come ' + pbiTok.utente : '') : tramite ? 'Power BI: letto dal Worker con la tua e-mail' : 'Power BI: non collegato';
     $('#bar-ms-entra').hidden = dentro;
     $('#bar-ms-esci').hidden = !dentro;
-    $('#pbi-prova').disabled = !dentro || pbiOccupato;
-    $('#pbi-compila').disabled = !dentro || pbiOccupato || !pbiScheda();
+    $('#pbi-prova').disabled = !(dentro || tramite) || pbiOccupato;
+    $('#pbi-compila').disabled = !(dentro || tramite) || pbiOccupato || !pbiScheda();
     // senza accesso Microsoft l'elenco si chiede al Worker, con l'e-mail di chi gestisce la mail
     $('#sped-leggi').disabled = !(dentro || gestPronta()) || pbiOccupato || attivo !== 'chanel';
     // il pulsante sta nel riquadro dei comandi: resta cliccabile anche senza accesso, così dice cosa manca
@@ -1713,6 +2089,43 @@ kbd {
       return t.rows || [];
     });
   }
+  // Una query per nome (vedi il blocco delle query in cima). Con l'accesso Microsoft la scrive e la esegue DiMail; senza,
+  // la chiede al Worker con l'e-mail riconosciuta di chi gestisce la mail: il Worker la scrive con lo stesso blocco e la
+  // esegue con il suo collegamento. In tutti e due i casi arrivano le righe della prima tabella.
+  function pbiTramiteWorker() { return !pbiTok && !AUTO; }
+  function pbiQ(nome, p, quale) {
+    var x = DAXQ.Q[nome];
+    if (!x) return Promise.reject(new Error('Query sconosciuta: ' + nome + '.'));
+    if (!pbiTramiteWorker()) {
+      var dax;
+      try { dax = x.fai(p); } catch (e) { return Promise.reject(e); }
+      return pbiQuery(dax, quale);
+    }
+    return pbiDalWorker({ q: nome, p: p }).then(function (j) { return Array.isArray(j.righe) ? j.righe : []; });
+  }
+  function pbiDalWorker(corpo) {
+    corpo.report = attivo;
+    return gestRichiesta('POST', '/pubblica/pbi', JSON.stringify(corpo)).then(function (o) {
+      if (o.j && o.j.ok) return o.j;
+      if (gestNonRiconosciuto(o)) {
+        gest.sessione = ''; gestSalva(); gestDisegna();
+        throw new Error('Il riconoscimento di questo browser è scaduto: premi di nuovo e scrivi il codice che ti arriva per e-mail.');
+      }
+      throw new Error((o.j && o.j.errore) || 'Il Worker ha risposto ' + o.stato + '.');
+    }, function () { throw new Error('Il Worker non risponde: controlla la connessione e riprova.'); });
+  }
+  // Prima di leggere Power BI: con l'accesso Microsoft si va subito; senza, serve l'e-mail riconosciuta (la prima volta
+  // arriva il codice per e-mail, poi l'azione riparte da sola). true = per ora ci si ferma.
+  function pbiServeAccesso(rifai) {
+    if (pbiTok || AUTO || gestSessione()) return false;
+    if (!gestPronta()) {
+      var t = 'Accedi con Microsoft, oppure scrivi la tua e-mail nelle impostazioni account: i valori di Power BI li legge il Worker.';
+      pbiEsito('err', t); toast(t); $('#gest-email').focus();
+      return true;
+    }
+    gestConAccesso(function () { rifai(); return Promise.resolve(null); });
+    return true;
+  }
 
   var pbiAttesa = null; // accesso in corso: { state, verifier, win, timer }
   function pbiFineAttesa() {
@@ -1792,7 +2205,7 @@ kbd {
   function pbiGiorno() {
     var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec($('#pbi-data').value || '');
     if (!m) { pbiEsito('err', 'Scegli il giorno da leggere.'); $('#pbi-data').focus(); return null; }
-    if (!GUID.test(pbi.group.trim()) || !GUID.test(pbi.report.trim())) { pbiEsito('err', 'ID dell\'area di lavoro o del report non valido: controllali in «Avanzate».'); return null; }
+    if (!pbiTramiteWorker() && (!GUID.test(pbi.group.trim()) || !GUID.test(pbi.report.trim()))) { pbiEsito('err', 'ID dell\'area di lavoro o del report non valido: controllali in «Avanzate».'); return null; }
     return { a: Number(m[1]), m: Number(m[2]), g: Number(m[3]), testo: m[3] + '/' + m[2] + '/' + m[1] };
   }
   // Legge dal modello tutti i valori del giorno con una sola query:
@@ -1801,24 +2214,7 @@ kbd {
     // Stessi filtri degli oggetti visivi del Pannello di Controllo (presi da «Copia query» dell'Analizzatore prestazioni):
     // il giorno come filtro di pagina; Stabilimento e Assemblaggi escludono ciascuno un proprio elenco di linee;
     // ogni card filtra le proprie linee; i reparti del Flusso Amont hanno solo il giorno
-    function elenco(linee) { return '{' + linee.map(function (n) { return '"' + n.replace(/"/g, '""') + '"'; }).join(', ') + '}'; }
-    function escluse(nome, linee) {
-      return 'VAR ' + nome + " = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Nome Linea])), NOT('Presenze CF Worker'[Nome Linea] IN " + elenco(linee) + '))\n';
-    }
-    var col = [];
-    PBI_PROVA.forEach(function (p) { col.push([p.k, 'CALCULATE(' + p.m + ', __Giorno' + (p.f ? ', ' + p.f : '') + ')']); });
-    PBI_LINEE.forEach(function (c, n) {
-      var f = "TREATAS(" + elenco(c.l) + ", 'Presenze CF Worker'[Nome Linea])";
-      col.push(['L' + n + 'E', "CALCULATE('Qualità CF Worker'[Efficienza], __Giorno, " + f + ')']);
-      col.push(['L' + n + 'C', "CALCULATE('Qualità CF Worker'[Efficacia], __Giorno, " + f + ')']);
-    });
-    PBI_REPARTI.forEach(function (r, n) { col.push(['R' + n, 'CALCULATE(' + r.m + ', __Giorno)']); });
-    var dax = 'DEFINE\n'
-      + "VAR __Giorno = TREATAS({DATE(" + giorno.a + ', ' + giorno.m + ', ' + giorno.g + ")}, 'Presenze CF Worker'[Data])\n"
-      + escluse('__LineeStabilimento', PBI_NON_STABILIMENTO)
-      + escluse('__LineeAssemblaggi', PBI_NON_ASSEMBLAGGI)
-      + 'EVALUATE ROW(\n' + col.map(function (c) { return '"' + c[0] + '", ' + c[1]; }).join(',\n') + '\n)';
-    return pbiQuery(dax).then(function (righe) {
+    return pbiQ('pannello', { g: giorno }).then(function (righe) {
       var r = righe[0] || {};
       function num(id) {
         var v = r['[' + id + ']'];
@@ -1836,6 +2232,12 @@ kbd {
   // Fine dell'ultimo aggiornamento riuscito del modello nel servizio (cronologia degli aggiornamenti): una Date oppure null.
   // Se la lettura non riesce il pannello si disegna lo stesso, con «--» al posto di data e ora.
   function pbiAggiornamento(quale) {
+    if (pbiTramiteWorker()) {
+      return pbiDalWorker({ agg: quale || '' }).then(function (j) {
+        var q = j.fine ? new Date(j.fine) : null;
+        return q && !isNaN(q.getTime()) ? q : null;
+      }, function () { return null; });
+    }
     return pbiDataset(quale).then(function (ds) {
       return pbiApi('groups/' + encodeURIComponent(pbiReportDi(quale).group) + '/datasets/' + ds + '/refreshes?$top=10');
     }).then(function (j) {
@@ -1880,6 +2282,7 @@ kbd {
     return n.every(function (x) { return x === null; });
   }
   function pbiProva() {
+    if (pbiServeAccesso(pbiProva)) return;
     var giorno = pbiGiorno();
     if (!giorno) return;
     pbiOccupato = true; pbiDisegna();
@@ -1917,7 +2320,7 @@ kbd {
       var chiaviOra = voci.map(function (v) { return v[0]; });
       sel.value = chiaviOra.indexOf(prima) !== -1 ? prima : (primoVuoto() || chiaviOra[0] || '');
     }
-    $('#pbi-compila').disabled = !pbiTok || pbiOccupato || !pbiScheda();
+    $('#pbi-compila').disabled = !(pbiTok || gestPronta()) || pbiOccupato || !pbiScheda();
   }
 
   // Ridisegna il Pannello di Controllo com'è in Power BI. Le misure qui sotto sono quelle del pannello a 1906 × 1072;
@@ -2028,26 +2431,15 @@ kbd {
   // Periodo: «giorni» giorni prima del giorno scelto, fino al giorno scelto compreso (come il filtro Data della pagina).
   // Le pagine per marchio hanno la stessa struttura (filtri, tre indicatori, card delle linee, Trend Efficienza):
   // cambiano il marchio, le linee, le misure e i colori. Tutto preso da «Copia query» e dalla pagina di Power BI.
-  var PBI_LV = {
-    giorni: 7,
-    brand: 'LV',
-    escluse: ['Mazzei'],   // linee fuori dai tre indicatori e dal grafico
-    linee: ['Sara Visintin', 'Francesca Odorico', 'Mario Todini', 'Mario Todini 2.0', 'Giorgia Strada', 'Mazzei'],   // card, nell'ordine della pagina
-    media: 'Efficienza_LV', oggi: 'Efficienza Oggi_LV',
-    oggiLinee: 'Presenze CF Worker',   // tabella su cui il visual «Efficienza Oggi» esclude le linee
+  // i campi delle query (periodo, brand, linee, misure) stanno nel blocco delle query; qui quelli del disegno
+  var PBI_LV = Object.assign({ pag: 'lv' }, DAXQ.K.BRAND.lv, {
     colore: '#F2955A', fondo: '#443738', cartellino: '#825744',
     sfondo: 'lv'   // chiave dell'immagine che può stare dietro al grafico (vedi pbiSfondi)
-  };
-  var PBI_CC = {
-    giorni: 7,
-    brand: 'Chanel',
-    escluse: ['Flacca'],
-    linee: ['Andrea Bianchi', 'Renato Cionco', 'Sonia Bandiera', 'Gian Marco Di Virginio', 'Flacca'],
-    media: 'Efficienza_CC', oggi: 'Efficienza Oggi_CC',
-    oggiLinee: 'Qualità CF Worker',
+  });
+  var PBI_CC = Object.assign({ pag: 'cc' }, DAXQ.K.BRAND.cc, {
     colore: '#B6DB6D', fondo: '#38463B', cartellino: '#657B4E',
     sfondo: 'cc'
-  };
+  });
   function pbiDataDax(q) { return 'DATE(' + q.getFullYear() + ', ' + (q.getMonth() + 1) + ', ' + q.getDate() + ')'; }
   function pbiDataBreve(q) { function due(n) { return ('0' + n).slice(-2); } return due(q.getDate()) + '/' + due(q.getMonth() + 1) + '/' + q.getFullYear(); }
   // Una data restituita da Power BI ("2026-11-17T00:00:00") come Date locale, oppure null
@@ -2060,30 +2452,8 @@ kbd {
     function num(v) { return (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v); }
     var al = new Date(giorno.a, giorno.m - 1, giorno.g);
     var dal = new Date(giorno.a, giorno.m - 1, giorno.g - P.giorni);
-    var fine = new Date(giorno.a, giorno.m - 1, giorno.g + 1);
-    // Stessi filtri degli oggetti visivi della pagina (da «Copia query»): linee escluse, periodo, brand
-    var def = 'DEFINE\n'
-      + "VAR __Linee = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Nome Linea])), NOT('Presenze CF Worker'[Nome Linea] IN " + elenco(P.escluse) + '))\n'
-      + "VAR __LineeOggi = FILTER(KEEPFILTERS(VALUES('" + P.oggiLinee + "'[Nome Linea])), NOT('" + P.oggiLinee + "'[Nome Linea] IN " + elenco(P.escluse) + '))\n'
-      + "VAR __Periodo = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Data])), AND('Presenze CF Worker'[Data] >= " + pbiDataDax(dal) + ", 'Presenze CF Worker'[Data] < " + pbiDataDax(fine) + '))\n'
-      + "VAR __Brand = TREATAS(" + elenco([P.brand]) + ", 'Qualità CF Worker'[Brand])\n";
-    var col = [
-      ['Media', "CALCULATE('Presenze CF Worker'[" + P.media + "], __Linee, __Periodo, __Brand)"],
-      ['Efficacia', "CALCULATE('Qualità CF Worker'[Efficacia], __Linee, __Periodo, __Brand)"],
-      ['Oggi', "CALCULATE('Presenze CF Worker'[" + P.oggi + "], __LineeOggi, __Periodo, __Brand)"],
-      ['MinData', "CALCULATE(MIN('Presenze CF Worker'[Data]), __Brand)"],
-      ['MaxData', "CALCULATE(MAX('Presenze CF Worker'[Data]), __Brand)"]
-    ];
-    P.linee.forEach(function (nome, n) {
-      var f = "TREATAS(" + elenco([nome]) + ", 'Presenze CF Worker'[Nome Linea])";
-      col.push(['L' + n + 'E', "CALCULATE('Qualità CF Worker'[Efficienza], " + f + ', __Periodo, __Brand)']);
-      col.push(['L' + n + 'C', "CALCULATE('Qualità CF Worker'[Efficacia], " + f + ', __Periodo, __Brand)']);
-    });
-    var daxValori = def + 'EVALUATE ROW(\n' + col.map(function (c) { return '"' + c[0] + '", ' + c[1]; }).join(',\n') + '\n)';
-    var daxTrend = def + "EVALUATE SUMMARIZECOLUMNS('Presenze CF Worker'[Data], __Linee, __Periodo, __Brand,\n"
-      + "\"Efficienza\", 'Presenze CF Worker'[" + P.media + "],\n\"Efficacia\", 'Qualità CF Worker'[Efficacia],\n\"Target\", IGNORE(CALCULATE(SUM('Target'[Target]))))\n"
-      + "ORDER BY 'Presenze CF Worker'[Data]";
-    return pbiQuery(daxValori).then(function (righe) {
+    var qp = { pag: P.pag, g: giorno };   // stessi filtri degli oggetti visivi della pagina: linee escluse, periodo, brand
+    return pbiQ('brandValori', qp).then(function (righe) {
       var r = righe[0] || {};
       var d = {
         P: P, dal: dal, al: al,
@@ -2096,7 +2466,7 @@ kbd {
         linee: P.linee.map(function (nome, n) { return { t: nome, eff: num(r['[L' + n + 'E]']), efc: num(r['[L' + n + 'C]']) }; }),
         trend: []
       };
-      return pbiQuery(daxTrend).then(function (tr) {
+      return pbiQ('brandTrend', qp).then(function (tr) {
         tr.forEach(function (x) {
           var quando = null;
           Object.keys(x).forEach(function (kk) { if (/\[Data\]$/.test(kk)) quando = pbiDataDa(x[kk]); });
@@ -2313,126 +2683,66 @@ kbd {
   // Le pagine di Power BI che DiMail sa ridisegnare
   // ───────── Pagine di reparto (Taglio DG, Preparazione DG CC): filtro Data, due tabelle, due indicatori, media operatori, grafico ─────────
   // Stessa regola del periodo delle pagine per marchio. Misure, linea e reparto vengono da «Copia query».
-  var PBI_TG = {
-    giorni: 7,
+  var PBI_TG = Object.assign({ pag: 'taglio' }, DAXQ.K.REP.taglio, {
     titolo: 'Taglio Valentano', titoloColore: '#FFFFFF',
-    linea: 'Taglio DG',
-    media: "'capacityLedgerEntryAPI'[Efficienza_TG]", oggi: "'capacityLedgerEntryAPI'[Efficienza Oggi_TG]",
-    // operatori: per giorno (colonne del grafico) e media del periodo (card); decimali mostrati
-    opGiorno: "CALCULATE(AVERAGE('Presenze CF Worker'[N° Operatori]))", opMedia: "AVERAGE('Presenze CF Worker'[N° Operatori])", opDec: 0, opVoce: 'Operatori Totali (FTE)',
-    soloCon: null,          // misura che deve essere > 0 perché una data conti nel cursore del periodo
-    reparto: 'taglio', brandAttivita: null,   // filtri della tabella delle attività (con brandAttivita compare la colonna Brand)
-    brandRighe: null,       // filtro Brand della tabella Data · Codice · Qtà · TC
+    opDec: 0, opVoce: 'Operatori Totali (FTE)',   // decimali e voce degli operatori
     sfondo: 'taglio',
     colore: '#5EFFFF', coloreTesto: '#38FCFF', chiaro: '#E1FDFF'
-  };
-  var PBI_PREP_CC = {
-    giorni: 7,
+  });
+  var PBI_PREP_CC = Object.assign({ pag: 'prepcc' }, DAXQ.K.REP.prepcc, {
     titolo: 'Preparazione DG_CC', titoloColore: '#BDFF23',
-    linea: 'Preparazione DG',
-    media: "'capacityLedgerEntryAPI'[Efficienza_Prep_CC]", oggi: "'capacityLedgerEntryAPI'[Efficienza Oggi_PRE_CC]",
-    opGiorno: "'Presenze CF Worker'[Operatori_PreCC]", opMedia: "'Presenze CF Worker'[Media_Operatori_PreCC]", opDec: 1, opVoce: 'Operatori (FTE)',
-    soloCon: "'Presenze CF Worker'[Operatori_PreCC]",
-    reparto: 'prep', brandAttivita: 'Chanel',
-    brandRighe: 'CC',
+    opDec: 1, opVoce: 'Operatori (FTE)',
     sfondo: 'prepcc',
     colore: '#BDFF23', coloreTesto: '#BDFF23', chiaro: '#E9FFB5'
-  };
-  var PBI_PREP_LV = {
-    giorni: 7,
+  });
+  var PBI_PREP_LV = Object.assign({ pag: 'preplv' }, DAXQ.K.REP.preplv, {
     titolo: 'Preparazione DG_LV', titoloColore: '#F2955A',
-    linea: 'Preparazione DG',
-    media: "'capacityLedgerEntryAPI'[Efficienza_Prep_LV]", oggi: "'capacityLedgerEntryAPI'[Efficienza Oggi_PRE_LV]",
-    opGiorno: "'Presenze CF Worker'[Operatori_PreLV]", opMedia: "'Presenze CF Worker'[Media_Operatori_PreLV]", opDec: 1, opVoce: 'Operatori Totali (FTE)',
-    soloCon: null,
-    reparto: 'prep', brandAttivita: 'LV',
-    brandRighe: 'LV',
+    opDec: 1, opVoce: 'Operatori Totali (FTE)',
     sfondo: 'preplv',
     // arancio pieno per cursore e riga delle tabelle; arancio morbido (quello di «Efficienza LV») per indicatore, scritte, linea e cella Brand
     colore: '#FF701B', coloreArco: '#F2955A', coloreTesto: '#F2955A', coloreLinea: '#F2955A', chiaro: '#FFD6BE'
-  };
-  var PBI_TING = {
-    giorni: 7,
+  });
+  var PBI_TING = Object.assign({ pag: 'ting' }, DAXQ.K.REP.ting, {
     titolo: 'Tingitura', titoloColore: '#FFFFFF',
-    linea: 'Tingitura',
-    media: "'capacityLedgerEntryAPI'[Efficienza_TING]", oggi: "'capacityLedgerEntryAPI'[Efficienza Oggi_TING]",
-    opGiorno: "CALCULATE(AVERAGE('Presenze CF Worker'[N° Operatori]))", opMedia: "AVERAGE('Presenze CF Worker'[N° Operatori])", opDec: 0, opVoce: 'Operatori Totali (FTE)',
-    soloCon: null,
-    reparto: 'tintura', brandAttivita: null,
-    brandRighe: null,
+    opDec: 0, opVoce: 'Operatori Totali (FTE)',
     sfondo: 'ting',
     colore: '#3FB2FF', coloreTesto: '#3FB2FF', chiaro: '#BBE4FF',
     coloreTarget: '#BDFF23', coloreQta: '#3FB2FF'   // in questa pagina il Target è verde e la colonna Qtà è azzurra
-  };
-  var PBI_RMA = {
-    giorni: 7,
+  });
+  var PBI_RMA = Object.assign({ pag: 'rma' }, DAXQ.K.REP.rma, {
     titolo: 'RMA', titoloColore: '#FFFFFF',
-    linea: 'RMA',
-    media: "'capacityLedgerEntryAPI'[Efficienza_RMA]", oggi: "'capacityLedgerEntryAPI'[Efficienza Oggi_RMA]",
-    opGiorno: "CALCULATE(AVERAGE('Presenze CF Worker'[N° Operatori]))", opMedia: "AVERAGE('Presenze CF Worker'[N° Operatori])", opDec: 0, opVoce: 'Operatori Totali (FTE)',
-    soloCon: null,
-    reparto: 'rma', brandAttivita: null,
-    brandRighe: null,
+    opDec: 0, opVoce: 'Operatori Totali (FTE)',
     sfondo: 'rma',
     colore: '#FB3CED', coloreTesto: '#FB3CED', chiaro: '#FDBFF9',
     coloreTarget: '#BFFF48', coloreQta: '#FB3CED'
-  };
+  });
   function pbiLeggiReparto(P, giorno) {
     function elenco(l) { return '{' + l.map(function (n) { return '"' + n.replace(/"/g, '""') + '"'; }).join(', ') + '}'; }
     function num(v) { return (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v); }
     function campo(x, fine) { var r = null; Object.keys(x).forEach(function (kk) { if (kk.slice(-fine.length) === fine) r = x[kk]; }); return r; }
     var al = new Date(giorno.a, giorno.m - 1, giorno.g);
     var dal = new Date(giorno.a, giorno.m - 1, giorno.g - P.giorni);
-    var fine = new Date(giorno.a, giorno.m - 1, giorno.g + 1);
-    var def = 'DEFINE\n'
-      + "VAR __Periodo = FILTER(KEEPFILTERS(VALUES('Presenze CF Worker'[Data])), AND('Presenze CF Worker'[Data] >= " + pbiDataDax(dal) + ", 'Presenze CF Worker'[Data] < " + pbiDataDax(fine) + '))\n'
-      + "VAR __Linea = TREATAS(" + elenco([P.linea]) + ", 'Presenze CF Worker'[Nome Linea])\n";
-    var daxValori = def + 'EVALUATE ROW(\n'
-      + '"Media", CALCULATE(' + P.media + ', __Periodo, __Linea),\n'
-      + '"Oggi", CALCULATE(' + P.oggi + ', __Periodo, __Linea),\n'
-      + '"Operatori", CALCULATE(' + P.opMedia + ', __Periodo, __Linea),\n'
-      + (P.soloCon
-        ? "\"MinData\", MINX(FILTER(CALCULATETABLE(VALUES('Presenze CF Worker'[Data]), __Linea), CALCULATE(" + P.soloCon + ", __Linea) > 0), 'Presenze CF Worker'[Data]),\n"
-          + "\"MaxData\", MAXX(FILTER(CALCULATETABLE(VALUES('Presenze CF Worker'[Data]), __Linea), CALCULATE(" + P.soloCon + ", __Linea) > 0), 'Presenze CF Worker'[Data])\n)"
-        : "\"MinData\", CALCULATE(MIN('Presenze CF Worker'[Data]), __Linea),\n"
-          + "\"MaxData\", CALCULATE(MAX('Presenze CF Worker'[Data]), __Linea)\n)");
-    var daxTrend = def + "EVALUATE SUMMARIZECOLUMNS('Presenze CF Worker'[Data], __Periodo, __Linea,\n"
-      + '"Operatori", ' + P.opGiorno + ",\n\"Target\", IGNORE(CALCULATE(SUM('Target'[Target]))),\n\"Efficienza\", " + P.media + ")\n"
-      + "ORDER BY 'Presenze CF Worker'[Data]";
-    var daxAttivita = def + "VAR __Reparto = TREATAS(" + elenco([P.reparto]) + ", 'Inserimento Attività CF Worker'[Reparto])\n"
-      + (P.brandAttivita ? "VAR __BrandAtt = TREATAS(" + elenco([P.brandAttivita]) + ", 'Inserimento Attività CF Worker'[Brand])\n" : '')
-      + "EVALUATE SUMMARIZECOLUMNS('Inserimento Attività CF Worker'[Data], 'Inserimento Attività CF Worker'[Tipologia], "
-      + (P.brandAttivita ? "'Inserimento Attività CF Worker'[Brand], __Reparto, __BrandAtt" : '__Reparto') + ", __Periodo, __Linea,\n"
-      + "\"Tempo\", CALCULATE(SUM('Inserimento Attività CF Worker'[Tempo (min)])))\n"
-      + "ORDER BY 'Inserimento Attività CF Worker'[Data] DESC, 'Inserimento Attività CF Worker'[Tipologia]"
-      + (P.brandAttivita ? ", 'Inserimento Attività CF Worker'[Brand]" : '');
-    // Tabella Data · Codice · Qtà · TC: le righe più recenti (nella mail ne entrano una decina)
-    var daxRighe = def + (P.brandRighe ? "VAR __BrandRighe = TREATAS(" + elenco([P.brandRighe]) + ", 'capacityLedgerEntryAPI'[Brand])\n" : '')
-      + "VAR __Righe = SUMMARIZECOLUMNS('capacityLedgerEntryAPI'[Data], 'capacityLedgerEntryAPI'[Codice], 'capacityLedgerEntryAPI'[TC], "
-      + (P.brandRighe ? '__BrandRighe, ' : '') + "__Periodo, __Linea,\n"
-      + "\"Qta\", CALCULATE(SUM('capacityLedgerEntryAPI'[OutputQuantity])))\n"
-      + "EVALUATE TOPN(60, __Righe, 'capacityLedgerEntryAPI'[Data], 0, 'capacityLedgerEntryAPI'[Codice], 1, 'capacityLedgerEntryAPI'[TC], 1)\n"
-      + "ORDER BY 'capacityLedgerEntryAPI'[Data] DESC, 'capacityLedgerEntryAPI'[Codice], 'capacityLedgerEntryAPI'[TC]";
+    var qp = { pag: P.pag, g: giorno };
     var d = { R: P, dal: dal, al: al, trend: [], attivita: [], righe: [] };
-    return pbiQuery(daxValori).then(function (righe) {
+    return pbiQ('repValori', qp).then(function (righe) {
       var r = righe[0] || {};
       d.media = num(r['[Media]']); d.oggi = num(r['[Oggi]']); d.operatori = num(r['[Operatori]']);
       d.min = pbiDataDa(r['[MinData]']); d.max = pbiDataDa(r['[MaxData]']);
-      return pbiQuery(daxTrend);
+      return pbiQ('repTrend', qp);
     }).then(function (tr) {
       tr.forEach(function (x) {
         var quando = pbiDataDa(campo(x, '[Data]'));
         if (quando) d.trend.push({ data: quando, op: num(x['[Operatori]']), target: num(x['[Target]']), eff: num(x['[Efficienza]']) });
       });
       d.trend.sort(function (a, b) { return a.data - b.data; });
-      return pbiQuery(daxAttivita);
+      return pbiQ('repAttivita', qp);
     }).then(function (at) {
       at.forEach(function (x) {
         var quando = pbiDataDa(campo(x, '[Data]'));
         if (quando) d.attivita.push({ data: quando, tip: String(campo(x, '[Tipologia]') === null ? '' : campo(x, '[Tipologia]')), brand: String(campo(x, '[Brand]') === null ? '' : campo(x, '[Brand]')), tempo: num(x['[Tempo]']) });
       });
       d.attivita.sort(function (a, b) { return (b.data - a.data) || (a.tip < b.tip ? -1 : a.tip > b.tip ? 1 : 0) || (a.brand < b.brand ? -1 : a.brand > b.brand ? 1 : 0); });
-      return pbiQuery(daxRighe);
+      return pbiQ('repRighe', qp);
     }).then(function (rg) {
       rg.forEach(function (x) {
         var quando = pbiDataDa(campo(x, '[Data]'));
@@ -2683,12 +2993,10 @@ kbd {
   // Come in Power BI: tutto l'anno del giorno scelto, filtrato sulla sua settimana (il numero di settimana si chiede al
   // calendario del modello, così coincide sempre con quello del report), magazzino VT-MAG-PF, ordini V-VT, DDT V-DDT-CC-VT,
   // senza le collezioni di presse, prototipi e riparazioni.
-  var PBI_ORE = {
-    area: 'VT-MAG-PF', ov: 'V-VT', ddt: 'V-DDT-CC-VT',
-    collezioniEscluse: ['', '26A PRESSE', '26A PT', '26B PT', '26K PT', '26M PRESSE', '26M PT', '26P PT', '26S PT', '27C PRESSE', '27C PT', '27M PRESSE', '27P CD',
-      '26A RIPARAZIONI', '26B RIPARAZIONI', '26C RIPARAZIONI', '26K RIPARZIONI', '26M RIPARAZIONI', '26P RIPARAZIONI', '26S RIPARAZIONI', '27P PRESSE'],
+  // area, tipologie e collezioni escluse stanno nel blocco delle query
+  var PBI_ORE = Object.assign({}, DAXQ.K.ORE, {
     righeMax: 17   // quante righe della tabella entrano nella pagina
-  };
+  });
   // Il logo DiMar Group che la pagina ha già (in cima, accanto al titolo): serve bianco nell'intestazione del disegno
   var pbiLogoImg = null;
   var pbiLogoAttesa = new Promise(function (fatto) {
@@ -2744,7 +3052,7 @@ kbd {
     save();
     oreCollDisegna();
     clearTimeout(oreRifai);
-    if (oreUltimo && pbiTok && chiavi(state).indexOf(oreUltimo) !== -1 && imgs[oreUltimo]) {
+    if (oreUltimo && (pbiTok || gestSessione()) && chiavi(state).indexOf(oreUltimo) !== -1 && imgs[oreUltimo]) {
       oreRifai = setTimeout(function () {
         if (pbiOccupato || attivo !== 'ore') return;
         $('#pbi-box').value = oreUltimo;
@@ -2776,50 +3084,30 @@ kbd {
     }
     // La settimana è quella del giorno scelto (che si apre su oggi), senza scriverla a mano: il numero si chiede al calendario
     // del modello, così coincide con quello del report; se il modello non risponde si calcola qui (settimana ISO, dal lunedì).
-    return pbiQuery("EVALUATE ROW(\"Sett\", CALCULATE(MIN('Calendario'[Settimana]), 'Calendario'[Date] = " + pbiDataDax(quando) + '))', Q).then(function (r0) {
+    return pbiQ('oreSett', { g: giorno }, Q).then(function (r0) {
       return num((r0[0] || {})['[Sett]']);
     }, function () { return null; }).then(function (sett) {
       d.sett = sett !== null && sett >= 1 && sett <= 54 ? Math.round(sett) : settimanaIso(quando);
       d.settCalcolata = !(sett !== null && sett >= 1 && sett <= 54);
       settimanaLetta = { giorno: giorno.a + '-' + ('0' + giorno.m).slice(-2) + '-' + ('0' + giorno.g).slice(-2), sett: d.sett };   // per {settimana} nei testi della mail
-      var filtri = '__Anno, __Sett, __Area, __Coll, __OV, __DDT', togli = oreCollTolte(chiave);
+      var togli = oreCollTolte(chiave);
       d.collTolte = togli.slice();
-      var def = 'DEFINE\n'
-        + "VAR __Anno = FILTER(KEEPFILTERS(VALUES('Calendario'[Date])), AND('Calendario'[Date] >= DATE(" + giorno.a + ", 1, 1), 'Calendario'[Date] < DATE(" + (giorno.a + 1) + ', 1, 1)))\n'
-        + "VAR __Sett = TREATAS({" + d.sett + "}, 'Calendario'[Settimana])\n"
-        + "VAR __Area = TREATAS(" + elenco([P.area]) + ", 'salesLine'[Area])\n"
-        + "VAR __CollTutte = FILTER(KEEPFILTERS(VALUES('salesShipmentLine'[Collezione])), NOT('salesShipmentLine'[Collezione] IN " + elenco(P.collezioniEscluse) + '))\n'
-        // le collezioni tolte a mano in DiMail si sommano a quelle che la pagina esclude già
-        + "VAR __Coll = FILTER(KEEPFILTERS(VALUES('salesShipmentLine'[Collezione])), NOT('salesShipmentLine'[Collezione] IN " + elenco(P.collezioniEscluse.concat(togli)) + '))\n'
-        + "VAR __OV = TREATAS(" + elenco([P.ov]) + ", 'salesLine'[Tipologia OV])\n"
-        + "VAR __DDT = TREATAS(" + elenco([P.ddt]) + ", 'salesShipmentLine'[Tipologia DDT])\n";
-      var daxValori = def + 'EVALUATE ROW(\n'
-        + "\"Ore\", CALCULATE('Calendario'[Valentano_CC], " + filtri + '),\n'
-        + "\"Qta\", CALCULATE(SUM('salesShipmentLine'[Qtà]), " + filtri + '),\n'
-        + "\"Inizio\", CALCULATE('Calendario'[Start Collezione_SH], " + filtri + '),\n'
-        + "\"Fine\", CALCULATE(MIN('Scadenze Chanel'[SCADENZA INIZIALE]), " + filtri + '))';
-      var daxGiorni = def + "EVALUATE SUMMARIZECOLUMNS('Calendario'[Date], " + filtri + ",\n"
-        + "\"Ore\", 'Calendario'[Valentano_CC],\n\"Qta\", CALCULATE(SUM('salesShipmentLine'[Qtà])))\nORDER BY 'Calendario'[Date]";
-      var daxColl = def + "EVALUATE CALCULATETABLE(VALUES('salesShipmentLine'[Collezione]), " + filtri.replace('__Coll', '__CollTutte') + ")\nORDER BY 'salesShipmentLine'[Collezione]";
-      var daxRighe = def + "VAR __Righe = SUMMARIZECOLUMNS('salesShipmentLine'[Articolo + Colore], 'salesLine'[Descrizione Commerciale], " + filtri + ",\n"
-        + "\"Qta\", CALCULATE(SUM('salesShipmentLine'[Qtà])),\n\"Ore\", 'Calendario'[Valentano_CC])\n"
-        + "EVALUATE TOPN(200, __Righe, [Qta], 0, 'salesShipmentLine'[Articolo + Colore], 1, 'salesLine'[Descrizione Commerciale], 1)\n"
-        + "ORDER BY [Qta] DESC, 'salesShipmentLine'[Articolo + Colore], 'salesLine'[Descrizione Commerciale]";
-      return pbiQuery(daxValori, Q).then(function (rv) {
+      var qp = { g: giorno, sett: d.sett, togli: togli };
+      return pbiQ('oreValori', qp, Q).then(function (rv) {
         var r = rv[0] || {};
         d.ore = num(r['[Ore]']); d.qta = num(r['[Qta]']); d.inizio = scritta(r['[Inizio]']); d.fine = scritta(r['[Fine]']);
-        return pbiQuery(daxGiorni, Q);
+        return pbiQ('oreGiorni', qp, Q);
       }).then(function (rg) {
         rg.forEach(function (x) {
           var q = pbiDataDa(campo(x, '[Date]')), o = num(x['[Ore]']), n = num(x['[Qta]']);
           if (q && (o !== null || n !== null)) d.giorni.push({ data: q, ore: o, qta: n });
         });
         d.giorni.sort(function (a, b) { return a.data - b.data; });
-        return pbiQuery(daxColl, Q);
+        return pbiQ('oreColl', qp, Q);
       }).then(function (rc) {
         rc.forEach(function (x) { var c = campo(x, '[Collezione]'); if (c !== null && String(c) !== '') d.coll.push(String(c)); });
         oreCollSalva(d.sett, d.coll);
-        return pbiQuery(daxRighe, Q);
+        return pbiQ('oreRighe', qp, Q);
       }).then(function (rr_) {
         rr_.forEach(function (x) {
           var sku = campo(x, '[Articolo + Colore]'), ds = campo(x, '[Descrizione Commerciale]');
@@ -3006,7 +3294,7 @@ kbd {
   // ── Pagina «Ore Spedite LV» (scheda LV_Spedito) ───────────────────────────────────────────────────────────────────
   // Come in Power BI: tabella 'CHEMIN DiMar', settimana del giorno scelto, il suo anno, stabilimenti Floriano e Valentano,
   // reparti non vuoti, solo giorni feriali. Il riquadro «Totale Ore Spedite» conta in più solo i DDT LV di prodotto finito.
-  var PBI_LVS = { stab: ['Floriano', 'Valentano'], ddt: ['V-DDT-LV-FL', 'V-DDT-LV-VT'], pf: 'PF' };
+  var PBI_LVS = DAXQ.K.LVS;   // stabilimenti, tipologie DDT e gruppo PF: nel blocco delle query
   function pbiLeggiOreLv(giorno) {
     var P = PBI_LVS, Q = 'orelv';
     function elenco(l) { return '{' + l.map(function (n) { return '"' + n.replace(/"/g, '""') + '"'; }).join(', ') + '}'; }
@@ -3023,34 +3311,17 @@ kbd {
       throw e;
     }
     // la settimana del giorno scelto: si chiede alla tabella del report; se quel giorno non c'è (sabato, domenica) si calcola qui
-    return pbiQuery("EVALUATE ROW(\"Sett\", CALCULATE(MIN('CHEMIN DiMar'[Week]), 'CHEMIN DiMar'[Jour] = " + pbiDataDax(quando) + '))', Q).then(function (r0) {
+    return pbiQ('lvSett', { g: giorno }, Q).then(function (r0) {
       return num((r0[0] || {})['[Sett]']);
     }, function () { return null; }).then(function (sett) {
       d.sett = sett !== null && sett >= 1 && sett <= 54 ? Math.round(sett) : settimanaIso(quando);
       d.settCalcolata = !(sett !== null && sett >= 1 && sett <= 54);
       settimanaLetta = { giorno: giorno.a + '-' + ('0' + giorno.m).slice(-2) + '-' + ('0' + giorno.g).slice(-2), sett: d.sett };   // per {settimana} nei testi
-      var filtri = '__Sett, __Jour, __Stab, __AnnoS, __Rep, __Feriali, __AnnoC';
-      var def = 'DEFINE\n'
-        + "VAR __Sett = TREATAS({" + d.sett + "}, 'CHEMIN DiMar'[Week])\n"
-        + "VAR __Jour = FILTER(KEEPFILTERS(VALUES('CHEMIN DiMar'[Jour])), AND('CHEMIN DiMar'[Jour] >= DATE(" + giorno.a + ", 1, 1), 'CHEMIN DiMar'[Jour] < DATE(" + (giorno.a + 1) + ', 1, 1)))\n'
-        + "VAR __Stab = TREATAS(" + elenco(P.stab) + ", 'salesShipmentLine'[Stabilimento])\n"
-        + "VAR __AnnoS = TREATAS({" + giorno.a + "}, 'salesShipmentLine'[Anno])\n"
-        + "VAR __Rep = FILTER(KEEPFILTERS(VALUES('capacityLedgerEntryAPI'[DiMar_Reparti])), NOT('capacityLedgerEntryAPI'[DiMar_Reparti] IN {BLANK()}))\n"
-        + "VAR __Feriali = FILTER(KEEPFILTERS(VALUES('CHEMIN DiMar'[giorno/settimana])), NOT('CHEMIN DiMar'[giorno/settimana] IN {\"domenica\", \"sabato\", BLANK()}))\n"
-        + "VAR __AnnoC = TREATAS({" + giorno.a + "}, 'CHEMIN DiMar'[Anno])\n"
-        + "VAR __DDT = TREATAS(" + elenco(P.ddt) + ", 'salesShipmentLine'[Tipologia DDT])\n"
-        + "VAR __PF = TREATAS(" + elenco([P.pf]) + ", 'salesShipmentLine'[genProdPostingGroup])\n";
-      var daxValori = def + 'EVALUATE ROW(\n'
-        + "\"Val\", CALCULATE('CHEMIN DiMar'[Valentano], " + filtri + '),\n'
-        + "\"Flo\", CALCULATE('CHEMIN DiMar'[Floriano], " + filtri + '),\n'
-        + "\"Tot\", CALCULATE(SUM('CHEMIN DiMar'[Totale Ore Spedite]), " + filtri + ', __DDT, __PF),\n'
-        + "\"Href\", CALCULATE(SUM('CHEMIN DiMar'[Href]), " + filtri + ', __DDT, __PF))';
-      var daxGiorni = def + "EVALUATE SUMMARIZECOLUMNS('CHEMIN DiMar'[Jour], " + filtri + ",\n"
-        + "\"Flo\", 'CHEMIN DiMar'[Floriano],\n\"Val\", 'CHEMIN DiMar'[Valentano],\n\"Href\", CALCULATE(SUM('CHEMIN DiMar'[Href])))\nORDER BY 'CHEMIN DiMar'[Jour]";
-      return pbiQuery(daxValori, Q).then(function (rv) {
+      var qp = { g: giorno, sett: d.sett };
+      return pbiQ('lvValori', qp, Q).then(function (rv) {
         var r = rv[0] || {};
         d.val = num(r['[Val]']); d.flo = num(r['[Flo]']); d.tot = num(r['[Tot]']); d.obiettivo = num(r['[Href]']);
-        return pbiQuery(daxGiorni, Q);
+        return pbiQ('lvGiorni', qp, Q);
       }).then(function (rg) {
         rg.forEach(function (x) {
           var q = pbiDataDa(campo(x, '[Jour]')), f = num(x['[Flo]']), v = num(x['[Val]']), h = num(x['[Href]']);
@@ -3210,14 +3481,10 @@ kbd {
   // Un riquadro per tema: la sezione dice la collezione, il sottotitolo le descrizioni commerciali del tema (in Power BI:
   // pulsante «Collezione» e filtro «Descrizione»). Gli altri filtri sono quelli della pagina: settimana del giorno scelto,
   // il suo anno, prodotto finito; il riquadro «Performance Spedizioni» conta solo i DDT V-DDT-CC-VT.
-  var PBI_SPED = {
-    pf: 'PF', ddt: 'V-DDT-CC-VT',
-    // le collezioni che il pulsante «Collezione» della pagina non mostra (prototipi, presse, riparazioni, SAV)
-    collezioniEscluse: ['', '26A PRESSE', '26A PT', '26A RIPARAZIONI', '26B PT', '26B RIPARAZIONI', '26C PT', '26C RIPARAZIONI', '26K PT', '26K RIPARZIONI',
-      '26M PRESSE', '26M PT', '26M RIPARAZIONI', '26P PT', '26P RIPARAZIONI', '26S PT', '26S RIPARAZIONI', '27C PRESSE', '27C PT', '27C RIPARAZIONI',
-      '27M PT', '27P CD', '27P PRESSE', '27P PT', 'SAV', '27M PRESSE'],
+  // tipologie e collezioni escluse stanno nel blocco delle query
+  var PBI_SPED = Object.assign({}, DAXQ.K.SPED, {
     colonneMax: 14   // quanti articoli entrano nel grafico
-  };
+  });
   // Collezioni e descrizioni che ci sono nel modello: servono per scegliere i filtri. Si aggiornano a ogni lettura.
   var SPED_KEY = 'dimail-sped-elenco-v1';
   var spedElenco = null;   // { sett: '2026-47', letto: '…', coppie: [['27C', 'Clutch Bag'], …] }
@@ -3451,46 +3718,22 @@ kbd {
       }
       throw e;
     }
-    var daxSett = "EVALUATE TOPN(1, CALCULATETABLE(FILTER(VALUES('Chanel Reactualizzato'[Week]), 'Chanel Reactualizzato'[Week] <= " + testo(calcolata) + "), TREATAS(" + elenco([calcolata.slice(0, 4)]) + ", 'Chanel Reactualizzato'[Anno])), 'Chanel Reactualizzato'[Week], DESC)";
-    return pbiQuery(daxSett, Q).then(function (r0) {
+    return pbiQ('spedSett', { calcolata: calcolata }, Q).then(function (r0) {
       var w = campo(r0[0] || {}, '[Week]');
       return /^\d{4}-\d{1,2}$/.test(String(w || '')) ? String(w) : null;
     }, function () { return null; }).then(function (w) {
       if (w) { d.sett = w; d.anno = w.slice(0, 4); d.settCalcolata = false; }
-      var def = 'DEFINE\n'
-        + "VAR __Sett = TREATAS(" + elenco([d.sett]) + ", 'Chanel Reactualizzato'[Week])\n"
-        + "VAR __Anno = TREATAS(" + elenco([d.anno]) + ", 'Chanel Reactualizzato'[Anno])\n"
-        + "VAR __PF = TREATAS(" + elenco([P.pf]) + ", 'salesLine'[Categoria Prodotto])\n";
-      var daxCoppie = def
-        + "VAR __Coll = FILTER(KEEPFILTERS(VALUES('salesLine'[Collezione])), NOT('salesLine'[Collezione] IN " + elenco(P.collezioniEscluse) + '))\n'
-        + "EVALUATE CALCULATETABLE(SUMMARIZE('salesLine', 'salesLine'[Collezione], 'salesLine'[Descrizione Commerciale]), KEEPFILTERS(__Coll), KEEPFILTERS(__Sett), KEEPFILTERS(__Anno), KEEPFILTERS(__PF))\n"
-        + "ORDER BY 'salesLine'[Collezione], 'salesLine'[Descrizione Commerciale]";
-      return pbiQuery(daxCoppie, Q).then(function (rc) {
+      var qs = { sett: d.sett, anno: d.anno };
+      return pbiQ('spedCoppie', qs, Q).then(function (rc) {
         rc.forEach(function (x) {
           var c = campo(x, '[Collezione]'), ds = campo(x, '[Descrizione Commerciale]');
           if (c !== null && String(c) !== '' && ds !== null && String(ds) !== '') d.coppie.push([String(c), String(ds)]);
         });
         spedSalvaElenco(d.sett, d.coppie);
         if (!temi.length) return d;
-        // valori dei riquadri in alto, tutti i temi in una query sola
-        var defTemi = def + "VAR __DDT = TREATAS(" + elenco([P.ddt]) + ", 'salesShipmentLine'[Tipologia DDT])\n";
-        var righe = temi.map(function (t, i) {
-          defTemi += "VAR __C" + i + " = TREATAS(" + elenco([t.coll]) + ", 'salesLine'[Collezione])\n"
-            + "VAR __D" + i + " = TREATAS(" + elenco(t.desc) + ", 'salesLine'[Descrizione Commerciale])\n";
-          var f = '__C' + i + ', __D' + i + ', __Sett, __Anno, __PF';
-          return 'ROW("T", ' + i + ', "Qta", CALCULATE(SUM(\'salesLine\'[Qtà]), ' + f + '), "PSped", CALCULATE(\'salesLine\'[% Spedita], ' + f + '), '
-            + '"PObR", CALCULATE(\'salesLine\'[% ObiettivoR], ' + f + '), "Sped", CALCULATE(SUM(\'salesLine\'[Qtà Spedita]), ' + f + ', __DDT), '
-            + '"ObAtt", CALCULATE(SUM(\'Chanel Reactualizzato\'[CC_Reactualizzato]), ' + f + ', __DDT))';
-        });
-        var daxValori = defTemi + 'EVALUATE ' + (righe.length > 1 ? 'UNION(\n' + righe.join(',\n') + ')' : righe[0]);
-        // colonne del grafico: articolo per articolo, per tutte le collezioni e descrizioni dei temi; qui si divide per tema
+        // valori dei riquadri in alto, tutti i temi in una query sola; poi gli articoli di tutte le collezioni e descrizioni dei temi
         var colls = [], descs = [];
         temi.forEach(function (t) { if (colls.indexOf(t.coll) === -1) colls.push(t.coll); t.desc.forEach(function (x) { if (descs.indexOf(x) === -1) descs.push(x); }); });
-        var daxArticoli = def
-          + "VAR __Coll = TREATAS(" + elenco(colls) + ", 'salesLine'[Collezione])\n"
-          + "VAR __Desc = TREATAS(" + elenco(descs) + ", 'salesLine'[Descrizione Commerciale])\n"
-          + "EVALUATE SUMMARIZECOLUMNS('salesLine'[Collezione], 'salesLine'[SKU + Colore], 'salesLine'[Descrizione Commerciale], __Coll, __Desc, __Sett, __Anno, __PF,\n"
-          + "\"Qta\", CALCULATE(SUM('salesLine'[Qtà])),\n\"Sped\", CALCULATE(SUM('salesLine'[Qtà Spedita])),\n\"ObAtt\", CALCULATE(SUM('Chanel Reactualizzato'[CC_Reactualizzato])))";
         temi.forEach(function (t) {
           var tessere = [];
           d.coppie.forEach(function (c) { if (t.desc.indexOf(c[1]) !== -1 && tessere.indexOf(c[0]) === -1) tessere.push(c[0]); });
@@ -3498,13 +3741,13 @@ kbd {
           d.temi[t.chiave] = { nome: t.nome, coll: t.coll, desc: t.desc, qta: null, pSped: null, pObR: null, sped: null, obAtt: null, righe: [], tessere: tessere.sort() };
           d.ordine.push(t.chiave);
         });
-        return pbiQuery(daxValori, Q).then(function (rv) {
+        return pbiQ('spedValori', { sett: d.sett, anno: d.anno, temi: temi.map(function (t) { return { coll: t.coll, desc: t.desc }; }) }, Q).then(function (rv) {
           rv.forEach(function (x) {
             var i = num(campo(x, '[T]')), t = i !== null && temi[i] ? d.temi[temi[i].chiave] : null;
             if (!t) return;
             t.qta = num(campo(x, '[Qta]')); t.pSped = num(campo(x, '[PSped]')); t.pObR = num(campo(x, '[PObR]')); t.sped = num(campo(x, '[Sped]')); t.obAtt = num(campo(x, '[ObAtt]'));
           });
-          return pbiQuery(daxArticoli, Q);
+          return pbiQ('spedArticoli', { sett: d.sett, anno: d.anno, colls: colls, descs: descs }, Q);
         }).then(function (ra) {
           ra.forEach(function (x) {
             var c = String(campo(x, '[Collezione]') || ''), sku = campo(x, '[SKU + Colore]'), ds = String(campo(x, '[Descrizione Commerciale]') || '');
@@ -3753,6 +3996,7 @@ kbd {
 
   function pbiCompila() {
     if (!pbiScheda()) { pbiEsito('err', 'In questa scheda i riquadri non si compilano da Power BI.'); return; }
+    if (pbiServeAccesso(pbiCompila)) return;
     var chiave = $('#pbi-box').value;
     if (!chiave || chiavi(state).indexOf(chiave) === -1) { pbiEsito('err', 'Scegli il riquadro da compilare.'); apriAltro(); $('#pbi-box').focus(); return; }
     var giorno = pbiGiorno();
@@ -3786,7 +4030,7 @@ kbd {
   function spedCompilaTutti() {
     if (attivo !== 'chanel') return;
     // dal riquadro dei comandi l'esito nel pannello Power BI non si vede: lo dice anche un avviso
-    if (!pbiTok) { pbiEsito('err', 'Collegati prima a Power BI con «Accedi con Microsoft».'); toast('Collegati prima a Power BI con «Accedi con Microsoft».'); return; }
+    if (pbiServeAccesso(spedCompilaTutti)) return;
     var giorno = pbiGiorno();
     if (!giorno) { toast('Scegli il giorno nel campo «Giorno», sopra l\'anteprima della mail.'); $('#pbi-data').focus(); return; }
     var temi = spedTemi(state), ore = spedRiquadriOre(state);
@@ -3857,7 +4101,7 @@ kbd {
   var spedRifai = null;
   function spedRicompila(chiave) {
     clearTimeout(spedRifai);
-    if (!pbiTok || !imgsAll.chanel[chiave]) { toast('Collezioni salvate: compila il riquadro per vedere ore e quantità.'); return; }
+    if (!(pbiTok || gestSessione()) || !imgsAll.chanel[chiave]) { toast('Collezioni salvate: compila il riquadro per vedere ore e quantità.'); return; }
     spedRifai = setTimeout(function () {
       if (pbiOccupato || attivo !== 'chanel' || chiavi(state).indexOf(chiave) === -1) return;
       $('#pbi-box').value = chiave;
