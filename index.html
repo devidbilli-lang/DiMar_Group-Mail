@@ -278,16 +278,11 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
   .preview-col { grid-template-columns: minmax(0, 1fr) 340px; column-gap: 20px; align-items: start; }
   .preview-col > * { grid-column: 1; }
   .preview-col > .bar { grid-column: 1 / -1; }
-  .preview-col > .comandi { grid-column: 2; grid-row: 2 / span 2; grid-template-columns: minmax(0, 1fr); gap: 0; position: sticky; top: 16px; }
+  .preview-col > .comandi { grid-column: 2; grid-row: 2; grid-template-columns: minmax(0, 1fr); gap: 0; position: sticky; top: 16px; }
   .comandi .cmd-blocco + .cmd-blocco { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 14px; }
 }
 @media (max-width: 520px) { #mail { padding: 20px 18px; } }
 
-.howto { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 20px 28px; margin-top: 8px; }
-.howto > div { border-top: 1px solid var(--line); padding-top: 14px; min-width: 0; }
-.howto h2 { font-family: var(--f-display); font-size: 20px; font-weight: 600; line-height: 1.2; margin: 0 0 10px; }
-.howto ol { margin: 0; padding-left: 20px; display: grid; gap: 7px; font-size: 14px; }
-.howto b { font-weight: 600; }
 kbd {
   font-family: var(--f-mono); font-size: 12px; white-space: nowrap;
   border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--field);
@@ -376,7 +371,6 @@ kbd {
               <div class="stile" data-size="aperturaSize" data-color="aperturaColor" data-nome="apertura"></div>
             </div>
             <textarea id="f-apertura" rows="5"></textarea>
-            <p class="hint">Metti il testo tra **doppi asterischi** per il grassetto. Scrivi <code>{data}</code> dove vuoi la data di oggi (es. 17/11): si aggiorna da sola ogni giorno. <code>{data_completa}</code> aggiunge l'anno. <code>{settimana}</code> diventa la settimana di oggi (es. S47). In CHANEL-AGGIORNAMENTO CONSEGNE <code>{somma}</code> diventa la Qtà Spedita della pagina Ore Spedite (il numero verde): quella del riquadro Ore Spedite della mail, con le sue collezioni; se la mail non ne ha, quella di tutte le collezioni della settimana, letta da «Compila tutti i riquadri».</p>
           </div>
         </div>
       </fieldset>
@@ -579,28 +573,6 @@ kbd {
 
       <div class="stage"><div id="mail"></div></div>
 
-      <div class="howto">
-        <div>
-          <h2>Ogni giorno</h2>
-          <ol>
-            <li>Cattura la schermata con <kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>.</li>
-            <li>Clicca un riquadro qui nell'anteprima e premi <kbd>Ctrl</kbd>+<kbd>V</kbd>, oppure trascinaci l'immagine. Lo screenshot si adatta da solo alla larghezza del riquadro. Se non hai cliccato nessun riquadro, va nel primo vuoto.</li>
-            <li>La data nel testo di apertura si aggiorna da sola, se al suo posto hai scritto <code>{data}</code>.</li>
-            <li>Apri una nuova mail in Gmail. Premi <b>Copia destinatari</b> e incolla nel campo «A» con <kbd>Ctrl</kbd>+<kbd>V</kbd>.</li>
-            <li>Premi <b>Copia mail per Gmail</b> e incolla nel corpo. Aggiungi l'oggetto e invia.</li>
-          </ol>
-        </div>
-        <div>
-          <h2>Da sapere</h2>
-          <ol>
-            <li>I due report sono separati: ognuno ha i suoi testi, le sue sezioni e i suoi screenshot. Prima di copiare controlla quale è selezionato.</li>
-            <li>I riquadri sono bloccati alla larghezza della tua foto, circa una volta e un terzo la riga di apertura.</li>
-            <li>Gli screenshot restano finché la pagina è aperta. Se la ricarichi i riquadri si svuotano, mentre testi, sezioni e grandezze restano salvati.</li>
-            <li>Se incolli lo screenshot direttamente in Gmail, Gmail non lo adatta al riquadro: incollalo qui.</li>
-            <li>La prima volta manda una mail di prova a te stesso e aprila anche dal telefono.</li>
-          </ol>
-        </div>
-      </div>
     </section>
   </div>
 
