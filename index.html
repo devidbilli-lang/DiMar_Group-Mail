@@ -237,6 +237,11 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 #p-oggetto { font-weight: 600; overflow-wrap: anywhere; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .stage { background: var(--stage); border-radius: 8px; padding: 28px 20px; overflow-x: auto; }
+/* il giorno da leggere, sopra la mail e allineato al suo bordo sinistro */
+.stage-dentro { width: max-content; max-width: 100%; margin: 0 auto; }
+.stage-testa { display: flex; align-items: center; gap: 10px; margin: -14px 0 14px; }
+.stage-testa input[type="date"] { font: inherit; font-size: 14px; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; }
+.stage-testa input[type="date"]:hover { border-color: var(--muted); }
 #mail { width: max-content; margin: 0 auto; background: #FFFFFF; padding: 28px 32px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
 #mail [data-box] { cursor: pointer; }
 #mail [data-box]:focus { outline: 3px solid #185CE8; outline-offset: 2px; }
@@ -505,15 +510,11 @@ kbd {
         <span class="big-label cmd-titolo">IMPOSTAZIONI ACCOUNT</span>
         <div class="cmd-blocco" aria-label="Accesso a Power BI">
           <span class="pbi-stato"><span class="pbi-dot" id="bar-ms-dot"></span><span id="bar-ms-stato">Power BI: non collegato</span></span>
-          <div class="cmd-riga">
-            <label class="flabel" for="pbi-data">Giorno</label>
-            <input type="date" id="pbi-data">
-          </div>
           <div class="cmd-coppia">
             <button type="button" class="btn primary" id="bar-ms-entra">Accedi con Microsoft</button>
             <button type="button" class="btn" id="bar-ms-esci" hidden>Esci</button>
           </div>
-          <span class="hint">Il giorno vale per «Compila tutti i riquadri» e per il pannello Power BI; l'accesso serve per le anteprime con i dati.</span>
+          <span class="hint">Il giorno, sopra l'anteprima, vale per «Compila tutti i riquadri» e per il pannello Power BI; l'accesso serve per le anteprime con i dati.</span>
         </div>
         <div class="cmd-blocco">
           <label class="flabel" for="gest-email">La tua e-mail</label>
@@ -573,7 +574,15 @@ kbd {
       </div>
       <input type="file" id="f-file" accept="image/*" hidden>
 
-      <div class="stage"><div id="mail"></div></div>
+      <div class="stage">
+        <div class="stage-dentro">
+          <div class="stage-testa">
+            <label class="flabel" for="pbi-data">Giorno</label>
+            <input type="date" id="pbi-data">
+          </div>
+          <div id="mail"></div>
+        </div>
+      </div>
 
     </section>
   </div>
@@ -3773,7 +3782,7 @@ kbd {
     // dal riquadro dei comandi l'esito nel pannello Power BI non si vede: lo dice anche un avviso
     if (!pbiTok) { pbiEsito('err', 'Collegati prima a Power BI con «Accedi con Microsoft».'); toast('Collegati prima a Power BI con «Accedi con Microsoft».'); return; }
     var giorno = pbiGiorno();
-    if (!giorno) { toast('Scegli il giorno nel campo «Giorno», sopra «Accedi con Microsoft».'); $('#pbi-data').focus(); return; }
+    if (!giorno) { toast('Scegli il giorno nel campo «Giorno», sopra l\'anteprima della mail.'); $('#pbi-data').focus(); return; }
     var temi = spedTemi(state), ore = spedRiquadriOre(state);
     if (!temi.length && !ore.length) { pbiEsito('err', 'Nessun riquadro da compilare: a sinistra scegli la pagina di ogni riquadro e, per Performance Spedizioni, collezione e descrizioni.'); toast('Nessun riquadro da compilare: scegli a sinistra pagina, collezione e descrizioni.'); return; }
     var dest = imgsAll.chanel, pag = PBI_PAGINE.sped, fatti = 0, vuoti = [], valori = [], sett = '';
