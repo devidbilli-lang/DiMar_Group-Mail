@@ -418,11 +418,9 @@ kbd {
           <div class="field">
             <label for="pbi-client">ID applicazione (client) della registrazione in Entra</label>
             <input type="text" id="pbi-client" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="00000000-0000-0000-0000-000000000000">
-            <p class="hint">Indirizzo di ritorno da registrare in Entra come «Applicazione a pagina singola (SPA)»: <code id="pbi-redirect"></code></p>
           </div>
           <div class="pbi-row">
             <button type="button" class="btn" id="pbi-prova" disabled>Prova collegamento</button>
-            <span class="hint">«Accedi con Microsoft» e il giorno da leggere sono nel riquadro dei comandi, accanto all'anteprima.</span>
           </div>
           <div class="pbi-row">
             <label class="flabel" for="pbi-pagina">Pagina</label>
@@ -467,9 +465,7 @@ kbd {
             <button type="button" class="btn" id="sped-leggi" disabled>Leggi collezioni e descrizioni</button>
             <span class="hint" id="sped-stato"></span>
           </div>
-          <p class="hint">«Compila» ridisegna nel riquadro scelto la pagina di Power BI scelta, con i valori del giorno. «Ore Spedite Chanel» (scheda CC_Spedito) prende tutta la settimana del giorno scelto. «Ore Spedite LV» (scheda LV_Spedito) prende la settimana del giorno scelto, Floriano e Valentano. «Performance Spedizioni Chanel» (scheda CHANEL-AGGIORNAMENTO CONSEGNE) prende la settimana del giorno scelto e, per ogni riquadro, la collezione della sezione e le descrizioni spuntate sotto il sottotitolo: Nella stessa scheda un riquadro può usare invece «Ore Spedite Chanel», con le collezioni spuntate sotto il sottotitolo. «Compila tutti i riquadri», nel riquadro dei comandi accanto all'anteprima, li fa tutti insieme. Per «Efficienza LV», «Efficienza Chanel», «Taglio DG», le due «Preparazione DG», «Tingitura» e «RMA» il periodo sono gli otto giorni che finiscono nel giorno scelto. «Immagine nel grafico» è l'immagine che nel report sta dietro al grafico: vale per la pagina scelta qui sopra, una per pagina. Scegli la pagina, carica lo stesso file usato in Power BI, poi ricompila per vederla. Per l'invio automatico, dopo aver caricato o cambiato un'immagine ricopia le impostazioni nella pagina del Worker.</p>
           <div class="pbi-ris" id="pbi-ris" role="status" aria-live="polite" hidden></div>
-          <p class="hint">L'accesso è il tuo account Microsoft: nella pagina non viene salvata nessuna password. Si apre in una finestrella, quindi gli screenshot già incollati restano al loro posto.</p>
           <details>
             <summary>Avanzate</summary>
             <div class="stack">
@@ -488,39 +484,31 @@ kbd {
         <legend>Invio automatico</legend>
         <div class="stack" id="auto-corpo">
           <span class="big-label">RIQUADRI CHE SI COMPILANO DA SOLI</span>
-          <p class="hint" id="auto-spiega">Queste scelte valgono per la scheda aperta: ogni report ha le sue. Per ogni riquadro scegli cosa lo riempie quando la mail parte dal Worker: una pagina di Power BI oppure, in REPORT EFFICIENZE, la griglia o le note di NEXUS. I riquadri lasciati su «Nessuna» restano fuori dalla mail automatica.</p>
           <div class="stack" id="auto-lista"></div>
           <div class="field" id="auto-nexus-campo">
             <label for="auto-nexus">Indirizzo di NEXUS</label>
             <input type="url" id="auto-nexus" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="https://…">
-            <p class="hint">L'indirizzo con cui apri NEXUS nel browser. Serve solo se un riquadro usa la griglia o le note di NEXUS: il Worker le fotografa come sono in quel momento.</p>
           </div>
           <div class="field">
             <label for="auto-oggetto">Oggetto della mail</label>
             <input type="text" id="auto-oggetto">
-            <p class="hint"><code>{data}</code> diventa la data del giorno di invio.</p>
           </div>
           <div class="field">
             <label for="auto-mittente">Nome del mittente</label>
             <input type="text" id="auto-mittente" autocomplete="off" placeholder="Nome Cognome">
-            <p class="hint">Il nome che i destinatari vedono accanto all'indirizzo. L'indirizzo resta quello dell'account Gmail collegato nel Worker.</p>
           </div>
           <div class="field">
             <label for="auto-firma">Firma</label>
             <textarea id="auto-firma" rows="4" spellcheck="false" placeholder="Nome Cognome&#10;Ruolo&#10;Azienda · telefono"></textarea>
-            <p class="hint">Va in fondo alla mail automatica, a capo come la scrivi; <code>**testo**</code> esce in grassetto. Nelle mail spedite dal Worker la firma di Gmail non viene aggiunta: va scritta qui.</p>
           </div>
           <div class="field">
             <label for="gest-worker">Indirizzo del Worker</label>
             <input type="url" id="gest-worker" spellcheck="false" autocapitalize="off" autocomplete="off">
-            <p class="hint">Già scritto: cambialo solo se te lo dice chi amministra il Worker. Chi gestisce la mail scrive la sua e-mail nel riquadro dei comandi, accanto all'anteprima, e preme «Salva Modifiche (Worker)»: la prima volta da un browser gli arriva un codice per e-mail, poi quel browser resta riconosciuto per 30 giorni.</p>
           </div>
           <div class="pbi-row">
             <button type="button" class="btn primary" id="auto-copia">Copia impostazioni per il Worker</button>
           </div>
-          <p class="hint">Per chi amministra il Worker: incollale nella sua pagina, sanno da sole di quale report sono. Vanno ricopiate ogni volta che cambi testi, sezioni, destinatari o queste scelte.</p>
         </div>
-        <p class="hint" id="auto-altro" hidden>L'invio automatico riguarda REPORT EFFICIENZE, CHANEL-AGGIORNAMENTO CONSEGNE, CC_Spedito e LV_Spedito.</p>
       </fieldset>
 
       <button type="button" class="link" id="reset">Ripristina predefiniti</button>
@@ -3872,7 +3860,6 @@ kbd {
   (function () {
     var oggi = new Date();
     $('#pbi-data').value = oggi.getFullYear() + '-' + ('0' + (oggi.getMonth() + 1)).slice(-2) + '-' + ('0' + oggi.getDate()).slice(-2);
-    $('#pbi-redirect').textContent = pbiRedirect();
     var campi = { clientId: '#pbi-client', tenant: '#pbi-tenant', group: '#pbi-group', report: '#pbi-report' };
     Object.keys(campi).forEach(function (k) {
       $(campi[k]).value = pbi[k];
@@ -4052,16 +4039,13 @@ kbd {
     var corpo = $('#auto-corpo');
     if (!corpo) return;
     var m = autoModello(), eff = attivo === 'eff';
-    corpo.hidden = !m; $('#auto-altro').hidden = !!m;
+    corpo.hidden = !m;
     if (!m) return;
     if (!m.auto || typeof m.auto !== 'object') m.auto = {};
     if (m.oggetto === undefined) m.oggetto = DEFS[attivo].oggetto;
     // NEXUS entra solo in REPORT EFFICIENZE: nelle altre schede i riquadri si riempiono da Power BI
     var fonti = Object.keys(PBI_PAGINE).filter(function (id) { return !PBI_PAGINE[id].solo || PBI_PAGINE[id].solo === attivo; }).concat(eff ? ['nexus', 'nexus_note'] : []);
     $('#auto-nexus-campo').hidden = !eff;
-    $('#auto-spiega').textContent = attivo === 'chanel'
-      ? 'In questa scheda ogni riquadro si compila da solo con la pagina scelta a sinistra, sotto il suo sottotitolo: Performance Spedizioni con collezione e descrizioni, oppure Ore Spedite con le sue collezioni. La settimana è quella del giorno d\'invio. La mail parte anche con zero spedizioni, e un tema senza dati resta nella mail. Qui sotto vedi cosa entrerà.'
-      : 'Queste scelte valgono per la scheda aperta: ogni report ha le sue. Per ogni riquadro scegli cosa lo riempie quando la mail parte dal Worker: una pagina di Power BI oppure, in REPORT EFFICIENZE, la griglia o le note di NEXUS. I riquadri lasciati su «Nessuna» restano fuori dalla mail automatica.';
     if (attivo === 'chanel') {
       var temiA = {}, oreA = {};
       spedTemi(m).forEach(function (t) { temiA[t.chiave] = t; });
