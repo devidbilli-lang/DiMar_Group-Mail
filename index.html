@@ -185,7 +185,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .sez-subs { grid-column: 2 / -1; display: grid; gap: 6px; }
 .sub-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
 /* CHANEL-AGGIORNAMENTO CONSEGNE: collezione della sezione e descrizioni di ogni riquadro, per Power BI */
-/* CHANEL-ORE SPEDITE: collezioni contate */
+/* CC_Spedito: collezioni contate */
 .ore-coll { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 14px; }
 .ore-coll label { display: flex; gap: 5px; align-items: center; cursor: pointer; }
 #ore-coll-stato { flex-basis: 100%; }
@@ -442,6 +442,7 @@ kbd {
               <option value="ting">Tingitura</option>
               <option value="rma">RMA</option>
               <option value="ore">Ore Spedite Chanel</option>
+              <option value="orelv">Ore Spedite LV</option>
               <option value="sped">Performance Spedizioni Chanel</option>
             </select>
           </div>
@@ -472,7 +473,7 @@ kbd {
             <button type="button" class="btn" id="sped-leggi" disabled>Leggi collezioni e descrizioni</button>
             <span class="hint" id="sped-stato"></span>
           </div>
-          <p class="hint">«Compila» ridisegna nel riquadro scelto la pagina di Power BI scelta, con i valori del giorno. «Ore Spedite Chanel» (scheda CHANEL-ORE SPEDITE) prende tutta la settimana del giorno scelto. «Performance Spedizioni Chanel» (scheda CHANEL-AGGIORNAMENTO CONSEGNE) prende la settimana del giorno scelto e, per ogni riquadro, la collezione della sezione e le descrizioni spuntate sotto il sottotitolo: Nella stessa scheda un riquadro può usare invece «Ore Spedite Chanel», con le collezioni spuntate sotto il sottotitolo. «Compila tutti i riquadri», nel riquadro dei comandi accanto all'anteprima, li fa tutti insieme. Per «Efficienza LV», «Efficienza Chanel», «Taglio DG», le due «Preparazione DG», «Tingitura» e «RMA» il periodo sono gli otto giorni che finiscono nel giorno scelto. «Immagine nel grafico» è l'immagine che nel report sta dietro al grafico: vale per la pagina scelta qui sopra, una per pagina. Scegli la pagina, carica lo stesso file usato in Power BI, poi ricompila per vederla. Per l'invio automatico, dopo aver caricato o cambiato un'immagine ricopia le impostazioni nella pagina del Worker.</p>
+          <p class="hint">«Compila» ridisegna nel riquadro scelto la pagina di Power BI scelta, con i valori del giorno. «Ore Spedite Chanel» (scheda CC_Spedito) prende tutta la settimana del giorno scelto. «Ore Spedite LV» (scheda LV_Spedito) prende la settimana del giorno scelto, Floriano e Valentano. «Performance Spedizioni Chanel» (scheda CHANEL-AGGIORNAMENTO CONSEGNE) prende la settimana del giorno scelto e, per ogni riquadro, la collezione della sezione e le descrizioni spuntate sotto il sottotitolo: Nella stessa scheda un riquadro può usare invece «Ore Spedite Chanel», con le collezioni spuntate sotto il sottotitolo. «Compila tutti i riquadri», nel riquadro dei comandi accanto all'anteprima, li fa tutti insieme. Per «Efficienza LV», «Efficienza Chanel», «Taglio DG», le due «Preparazione DG», «Tingitura» e «RMA» il periodo sono gli otto giorni che finiscono nel giorno scelto. «Immagine nel grafico» è l'immagine che nel report sta dietro al grafico: vale per la pagina scelta qui sopra, una per pagina. Scegli la pagina, carica lo stesso file usato in Power BI, poi ricompila per vederla. Per l'invio automatico, dopo aver caricato o cambiato un'immagine ricopia le impostazioni nella pagina del Worker.</p>
           <div class="pbi-ris" id="pbi-ris" role="status" aria-live="polite" hidden></div>
           <p class="hint">L'accesso è il tuo account Microsoft: nella pagina non viene salvata nessuna password. Si apre in una finestrella, quindi gli screenshot già incollati restano al loro posto.</p>
           <details>
@@ -481,8 +482,9 @@ kbd {
               <div class="field"><label for="pbi-tenant">ID del tenant</label><input type="text" id="pbi-tenant" spellcheck="false" autocapitalize="off" autocomplete="off"></div>
               <div class="field"><label for="pbi-group">ID dell'area di lavoro</label><input type="text" id="pbi-group" spellcheck="false" autocapitalize="off" autocomplete="off"></div>
               <div class="field"><label for="pbi-report">ID del report</label><input type="text" id="pbi-report" spellcheck="false" autocapitalize="off" autocomplete="off"></div>
-              <div class="field"><label for="pbi-ore-indirizzo">Report di CHANEL-ORE SPEDITE (solo se è un altro report)</label><input type="text" id="pbi-ore-indirizzo" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Incolla l'indirizzo del report copiato dal browser; vuoto = lo stesso report qui sopra"><span class="hint" id="pbi-ore-stato"></span></div>
-              <div class="field"><label for="pbi-sped-indirizzo">Report di CHANEL-AGGIORNAMENTO CONSEGNE (solo se è un altro report)</label><input type="text" id="pbi-sped-indirizzo" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Incolla l'indirizzo del report copiato dal browser; vuoto = lo stesso di CHANEL-ORE SPEDITE"><span class="hint" id="pbi-sped-stato"></span></div>
+              <div class="field"><label for="pbi-ore-indirizzo">Report di CC_Spedito (solo se è un altro report)</label><input type="text" id="pbi-ore-indirizzo" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Incolla l'indirizzo del report copiato dal browser; vuoto = lo stesso report qui sopra"><span class="hint" id="pbi-ore-stato"></span></div>
+              <div class="field"><label for="pbi-sped-indirizzo">Report di CHANEL-AGGIORNAMENTO CONSEGNE (solo se è un altro report)</label><input type="text" id="pbi-sped-indirizzo" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Incolla l'indirizzo del report copiato dal browser; vuoto = lo stesso di CC_Spedito"><span class="hint" id="pbi-sped-stato"></span></div>
+              <div class="field"><label for="pbi-lv-indirizzo">Report di LV_Spedito (solo se è un altro report)</label><input type="text" id="pbi-lv-indirizzo" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Incolla l'indirizzo del report copiato dal browser; vuoto = lo stesso di CC_Spedito"><span class="hint" id="pbi-lv-stato"></span></div>
             </div>
           </details>
         </div>
@@ -524,7 +526,7 @@ kbd {
           </div>
           <p class="hint">Per chi amministra il Worker: incollale nella sua pagina, sanno da sole di quale report sono. Vanno ricopiate ogni volta che cambi testi, sezioni, destinatari o queste scelte.</p>
         </div>
-        <p class="hint" id="auto-altro" hidden>L'invio automatico riguarda REPORT EFFICIENZE, CHANEL-ORE SPEDITE e CHANEL-AGGIORNAMENTO CONSEGNE.</p>
+        <p class="hint" id="auto-altro" hidden>L'invio automatico riguarda REPORT EFFICIENZE, CHANEL-AGGIORNAMENTO CONSEGNE, CC_Spedito e LV_Spedito.</p>
       </fieldset>
 
       <button type="button" class="link" id="reset">Ripristina predefiniti</button>
@@ -649,7 +651,8 @@ kbd {
   var MODELLI = [
     { id: 'eff', nome: 'REPORT EFFICIENZE', hash: 'report-efficienze' },
     { id: 'chanel', nome: 'CHANEL-AGGIORNAMENTO CONSEGNE', hash: 'chanel-consegne', hashVecchio: 'chanel-spedizioni' },
-    { id: 'ore', nome: 'CHANEL-ORE SPEDITE', hash: 'chanel-ore-spedite' }
+    { id: 'ore', nome: 'CC_Spedito', hash: 'cc-spedito', hashVecchio: 'chanel-ore-spedite' },
+    { id: 'lvsped', nome: 'LV_Spedito', hash: 'lv-spedito' }
   ];
   var DEFS = {
     eff: {
@@ -717,6 +720,28 @@ kbd {
       mittenteNome: '',
       firma: '',
       auto: {}   // invio automatico: chiave del riquadro → pagina di Power BI che lo riempie
+    },
+    lvsped: {
+      apertura: 'Buon pomeriggio,\ndi seguito le ore spedite LV alla data odierna **({settimana}).**',
+      numeri: true,
+      aperturaSize: 14,
+      titoli: 16,
+      chiusuraSize: 14,
+      sottoSize: 14,
+      aperturaColor: '#26221E',
+      titoliColor: '#26221E',
+      sottoColor: '#4A443D',
+      chiusuraColor: '#26221E',
+      sezioni: [
+        { titolo: 'Ore spedite', sub: true, sotto: '', note: false }
+      ],
+      chiusura: 'Un saluto',
+      destinatari: '',
+      oggetto: 'LV_Spedito {data}',
+      mittenteNome: '',
+      firma: '',
+      settimanaOk: 1,
+      auto: { '1-1': 'orelv' }   // il riquadro della prima sezione si compila già con la pagina «Ore Spedite LV»
     }
   };
 
@@ -783,7 +808,7 @@ kbd {
     if (m && typeof m.apertura === 'string') m.apertura = m.apertura.replace(/\(gg\/mm\)/g, '({data})');
   });
 
-  // CHANEL-ORE SPEDITE: nel testo di apertura va la settimana (S47), non la data del giorno. Chi ha ancora {data} passa a
+  // CC_Spedito: nel testo di apertura va la settimana (S47), non la data del giorno. Chi ha ancora {data} passa a
   // {settimana}, una volta sola: da lì in poi il testo resta come lo scrivi.
   function oreSettimana(m) {
     if (!m || m.settimanaOk) return;
@@ -1413,8 +1438,10 @@ kbd {
     pagina: 'pannello',
     // la pagina «Ore Spedite Chanel» può stare in un altro report: se questi sono vuoti si usa quello qui sopra
     oreIndirizzo: '', groupOre: '', reportOre: '', datasetOre: '',
-    // la pagina «Performance Spedizioni»: se questi sono vuoti si usa il report di CHANEL-ORE SPEDITE (e se manca anche quello, il primo)
-    spedIndirizzo: '', groupSped: '', reportSped: '', datasetSped: ''
+    // la pagina «Performance Spedizioni»: se questi sono vuoti si usa il report di CC_Spedito (e se manca anche quello, il primo)
+    spedIndirizzo: '', groupSped: '', reportSped: '', datasetSped: '',
+    // la pagina «Ore Spedite LV»: se questi sono vuoti si usa il report di CC_Spedito (e se manca anche quello, il primo)
+    lvIndirizzo: '', groupLv: '', reportLv: '', datasetLv: ''
   };
   var PBI_SCOPE = 'https://analysis.windows.net/powerbi/api/Dataset.Read.All https://analysis.windows.net/powerbi/api/Report.Read.All offline_access openid profile';
   var GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -1665,10 +1692,11 @@ kbd {
     });
   }
   // Il modello dietro il report: si ricava una volta dal report e resta salvato
-  // «quale» = 'ore' per la pagina delle spedizioni Chanel, quando ha un report suo (vedi «Avanzate»)
+  // «quale» = 'ore' per la pagina delle spedizioni Chanel, quando ha un report suo (vedi «Avanzate»); 'orelv' per quella LV
   function pbiReportDi(quale) {
+    if (quale === 'orelv' && GUID.test(pbi.reportLv)) return { group: GUID.test(pbi.groupLv) ? pbi.groupLv : pbi.group.trim(), report: pbi.reportLv, chiave: 'datasetLv' };
     if (quale === 'sped' && GUID.test(pbi.reportSped)) return { group: GUID.test(pbi.groupSped) ? pbi.groupSped : pbi.group.trim(), report: pbi.reportSped, chiave: 'datasetSped' };
-    if ((quale === 'ore' || quale === 'sped') && GUID.test(pbi.reportOre)) return { group: GUID.test(pbi.groupOre) ? pbi.groupOre : pbi.group.trim(), report: pbi.reportOre, chiave: 'datasetOre' };
+    if ((quale === 'ore' || quale === 'sped' || quale === 'orelv') && GUID.test(pbi.reportOre)) return { group: GUID.test(pbi.groupOre) ? pbi.groupOre : pbi.group.trim(), report: pbi.reportOre, chiave: 'datasetOre' };
     return { group: pbi.group.trim(), report: pbi.report.trim(), chiave: 'dataset' };
   }
   function pbiDataset(quale) {
@@ -1880,7 +1908,7 @@ kbd {
 
   // Elenco dei riquadri di REPORT EFFICIENZE in cui si può disegnare
   // Le schede in cui i riquadri si possono compilare da Power BI
-  function pbiScheda() { return attivo === 'eff' || attivo === 'ore' || attivo === 'chanel'; }
+  function pbiScheda() { return attivo === 'eff' || attivo === 'ore' || attivo === 'chanel' || attivo === 'lvsped'; }
   function pbiRiquadri() {
     var sel = $('#pbi-box');
     if (!sel) return;
@@ -2662,7 +2690,7 @@ kbd {
   // Le pagine per marchio coprono un periodo: «senza dati del giorno» vuol dire che manca proprio il giorno finale,
   // anche se i giorni prima ci sono. Il giorno c'è se il grafico ha il suo punto; «Efficienza Oggi» guarda sempre la
   // giornata in corso, quindi conta solo quando il giorno della pagina è oggi.
-  // ── Pagina «Ore Spedite Chanel» (scheda CHANEL-ORE SPEDITE) ─────────────────────────────────────────────────────────
+  // ── Pagina «Ore Spedite Chanel» (scheda CC_Spedito) ─────────────────────────────────────────────────────────
   // Come in Power BI: tutto l'anno del giorno scelto, filtrato sulla sua settimana (il numero di settimana si chiede al
   // calendario del modello, così coincide sempre con quello del report), magazzino VT-MAG-PF, ordini V-VT, DDT V-DDT-CC-VT,
   // senza le collezioni di presse, prototipi e riparazioni.
@@ -2752,9 +2780,9 @@ kbd {
       var m = e.message || '', tabella = /salesShipmentLine|salesLine|Scadenze Chanel|Calendario|Valentano_CC/i.test(m);
       // senza un report suo, una query rifiutata vuol dire quasi sempre che queste tabelle stanno in un altro modello
       if (!GUID.test(pbi.reportOre) && (tabella || /\(400\)/.test(m))) {
-        throw new Error('Il report collegato (quello delle efficienze) non sembra avere i dati delle spedizioni Chanel: questa pagina sta in un altro report. Apri «Avanzate» e incolla il suo indirizzo in «Report di CHANEL-ORE SPEDITE», poi riprova. ' + m);
+        throw new Error('Il report collegato (quello delle efficienze) non sembra avere i dati delle spedizioni Chanel: questa pagina sta in un altro report. Apri «Avanzate» e incolla il suo indirizzo in «Report di CC_Spedito», poi riprova. ' + m);
       }
-      if (GUID.test(pbi.reportOre) && /\(400\)/.test(m)) throw new Error('Il report indicato in «Report di CHANEL-ORE SPEDITE» non ha accettato la query: controlla che sia proprio il report di questa pagina. ' + m);
+      if (GUID.test(pbi.reportOre) && /\(400\)/.test(m)) throw new Error('Il report indicato in «Report di CC_Spedito» non ha accettato la query: controlla che sia proprio il report di questa pagina. ' + m);
       throw e;
     }
     // La settimana è quella del giorno scelto (che si apre su oggi), senza scriverla a mano: il numero si chiede al calendario
@@ -2983,6 +3011,209 @@ kbd {
       var celle = [r.sku, r.desc, pbiNumero(r.qta, 0), pbiNumero(r.ore, 0)];
       COL.forEach(function (cl, j) { var f = adatta(celle[j], '', 22, 16, cl[2] - cl[1] - 12); testo(accorcia(celle[j], f, cl[2] - cl[1] - 12), (cl[1] + cl[2]) / 2, y0 + 25, f, col); });
     });
+    return { src: c.toDataURL('image/png'), ratio: c.height / c.width };
+  }
+
+  // ── Pagina «Ore Spedite LV» (scheda LV_Spedito) ───────────────────────────────────────────────────────────────────
+  // Come in Power BI: tabella 'CHEMIN DiMar', settimana del giorno scelto, il suo anno, stabilimenti Floriano e Valentano,
+  // reparti non vuoti, solo giorni feriali. Il riquadro «Totale Ore Spedite» conta in più solo i DDT LV di prodotto finito.
+  var PBI_LVS = { stab: ['Floriano', 'Valentano'], ddt: ['V-DDT-LV-FL', 'V-DDT-LV-VT'], pf: 'PF' };
+  function pbiLeggiOreLv(giorno) {
+    var P = PBI_LVS, Q = 'orelv';
+    function elenco(l) { return '{' + l.map(function (n) { return '"' + n.replace(/"/g, '""') + '"'; }).join(', ') + '}'; }
+    function num(v) { return (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v); }
+    function campo(x, fine) { var r = null; Object.keys(x).forEach(function (kk) { if (kk.slice(-fine.length) === fine) r = x[kk]; }); return r; }
+    var quando = new Date(giorno.a, giorno.m - 1, giorno.g);
+    var d = { giorno: quando, anno: giorno.a, sett: null, tot: null, obiettivo: null, val: null, flo: null, giorni: [] };
+    function spiega(e) {
+      var m = e.message || '', tabella = /CHEMIN|salesShipmentLine|capacityLedgerEntryAPI/i.test(m);
+      if (!GUID.test(pbi.reportLv) && (tabella || /\(400\)/.test(m))) {
+        throw new Error('Il report usato (' + (GUID.test(pbi.reportOre) ? 'quello di CC_Spedito' : 'quello delle efficienze') + ') non sembra avere la tabella «CHEMIN DiMar»: la pagina Ore Spedite LV sta in un altro report. Apri «Avanzate» e incolla il suo indirizzo in «Report di LV_Spedito», poi riprova. ' + m);
+      }
+      if (GUID.test(pbi.reportLv) && /\(400\)/.test(m)) throw new Error('Il report indicato in «Report di LV_Spedito» non ha accettato la query: controlla che sia proprio il report di questa pagina. ' + m);
+      throw e;
+    }
+    // la settimana del giorno scelto: si chiede alla tabella del report; se quel giorno non c'è (sabato, domenica) si calcola qui
+    return pbiQuery("EVALUATE ROW(\"Sett\", CALCULATE(MIN('CHEMIN DiMar'[Week]), 'CHEMIN DiMar'[Jour] = " + pbiDataDax(quando) + '))', Q).then(function (r0) {
+      return num((r0[0] || {})['[Sett]']);
+    }, function () { return null; }).then(function (sett) {
+      d.sett = sett !== null && sett >= 1 && sett <= 54 ? Math.round(sett) : settimanaIso(quando);
+      d.settCalcolata = !(sett !== null && sett >= 1 && sett <= 54);
+      settimanaLetta = { giorno: giorno.a + '-' + ('0' + giorno.m).slice(-2) + '-' + ('0' + giorno.g).slice(-2), sett: d.sett };   // per {settimana} nei testi
+      var filtri = '__Sett, __Jour, __Stab, __AnnoS, __Rep, __Feriali, __AnnoC';
+      var def = 'DEFINE\n'
+        + "VAR __Sett = TREATAS({" + d.sett + "}, 'CHEMIN DiMar'[Week])\n"
+        + "VAR __Jour = FILTER(KEEPFILTERS(VALUES('CHEMIN DiMar'[Jour])), AND('CHEMIN DiMar'[Jour] >= DATE(" + giorno.a + ", 1, 1), 'CHEMIN DiMar'[Jour] < DATE(" + (giorno.a + 1) + ', 1, 1)))\n'
+        + "VAR __Stab = TREATAS(" + elenco(P.stab) + ", 'salesShipmentLine'[Stabilimento])\n"
+        + "VAR __AnnoS = TREATAS({" + giorno.a + "}, 'salesShipmentLine'[Anno])\n"
+        + "VAR __Rep = FILTER(KEEPFILTERS(VALUES('capacityLedgerEntryAPI'[DiMar_Reparti])), NOT('capacityLedgerEntryAPI'[DiMar_Reparti] IN {BLANK()}))\n"
+        + "VAR __Feriali = FILTER(KEEPFILTERS(VALUES('CHEMIN DiMar'[giorno/settimana])), NOT('CHEMIN DiMar'[giorno/settimana] IN {\"domenica\", \"sabato\", BLANK()}))\n"
+        + "VAR __AnnoC = TREATAS({" + giorno.a + "}, 'CHEMIN DiMar'[Anno])\n"
+        + "VAR __DDT = TREATAS(" + elenco(P.ddt) + ", 'salesShipmentLine'[Tipologia DDT])\n"
+        + "VAR __PF = TREATAS(" + elenco([P.pf]) + ", 'salesShipmentLine'[genProdPostingGroup])\n";
+      var daxValori = def + 'EVALUATE ROW(\n'
+        + "\"Val\", CALCULATE('CHEMIN DiMar'[Valentano], " + filtri + '),\n'
+        + "\"Flo\", CALCULATE('CHEMIN DiMar'[Floriano], " + filtri + '),\n'
+        + "\"Tot\", CALCULATE(SUM('CHEMIN DiMar'[Totale Ore Spedite]), " + filtri + ', __DDT, __PF),\n'
+        + "\"Href\", CALCULATE(SUM('CHEMIN DiMar'[Href]), " + filtri + ', __DDT, __PF))';
+      var daxGiorni = def + "EVALUATE SUMMARIZECOLUMNS('CHEMIN DiMar'[Jour], " + filtri + ",\n"
+        + "\"Flo\", 'CHEMIN DiMar'[Floriano],\n\"Val\", 'CHEMIN DiMar'[Valentano],\n\"Href\", CALCULATE(SUM('CHEMIN DiMar'[Href])))\nORDER BY 'CHEMIN DiMar'[Jour]";
+      return pbiQuery(daxValori, Q).then(function (rv) {
+        var r = rv[0] || {};
+        d.val = num(r['[Val]']); d.flo = num(r['[Flo]']); d.tot = num(r['[Tot]']); d.obiettivo = num(r['[Href]']);
+        return pbiQuery(daxGiorni, Q);
+      }).then(function (rg) {
+        rg.forEach(function (x) {
+          var q = pbiDataDa(campo(x, '[Jour]')), f = num(x['[Flo]']), v = num(x['[Val]']), h = num(x['[Href]']);
+          if (q && (f !== null || v !== null || h !== null)) d.giorni.push({ data: q, flo: f, val: v, href: h });
+        });
+        d.giorni.sort(function (a, b) { return a.data - b.data; });
+        return d;
+      });
+    }).then(null, spiega);
+  }
+  function pbiElencoOreLv(d) {
+    var diff = d.tot !== null && d.obiettivo !== null ? d.tot - d.obiettivo : null;
+    var v = [['Settimana', d.sett + ' del ' + d.anno + (d.settCalcolata ? ' (calcolata da DiMail)' : '')], ['Totale Ore Spedite', pbiNumero(d.tot, 0)],
+      ['Obiettivo Chemin', pbiNumero(d.obiettivo, 0) + (diff === null ? '' : ' (' + pbiNumero(diff, 0) + ')')], ['Valentano', pbiNumero(d.val, 0)], ['Floriano', pbiNumero(d.flo, 0)]];
+    d.giorni.forEach(function (g) { v.push(['Grafico ' + pbiDataBreve(g.data), 'Floriano ' + pbiNumero(g.flo, 0) + ' · Valentano ' + pbiNumero(g.val, 0) + ' · Chemin ' + pbiNumero(g.href, 0)]); });
+    return v;
+  }
+  function pbiVuotoOreLv(d) {
+    return !(d.tot > 0) && !(d.val > 0) && !(d.flo > 0) && !d.giorni.some(function (g) { return g.flo > 0 || g.val > 0; });
+  }
+  // Invio automatico: come CC_Spedito, conta il giorno della mail. Se quel giorno né Floriano né Valentano hanno spedito
+  // la pagina resta fuori (e la mail, che ha solo questa pagina, non parte).
+  function pbiSenzaGiornoOreLv(d) {
+    if (pbiVuotoOreLv(d)) return true;
+    return !d.giorni.some(function (g) { return pbiStessoGiorno(g.data, d.giorno) && ((g.flo || 0) > 0 || (g.val || 0) > 0); });
+  }
+  // Ridisegna la pagina com'è in Power BI. Le misure sono quelle della pagina a 1651 × 937.
+  function pbiImmagineOreLv(d) {
+    var SW = 1651, SH = 937, k = (BOX_W * 2) / SW, F = PBI_F;
+    var NERO = '#000000', BIANCO = '#FFFFFF', CARTA = '#1A1A1A', ROSSO = '#D64554', VERDE = '#3DF58F', GIALLO = '#FAFF5B';
+    var VAL = '#FF54CC', VAL_F = '#5F2B4F', FLO = '#13FFF7', FLO_F = '#185F5C';
+    var c = document.createElement('canvas');
+    c.width = BOX_W * 2; c.height = Math.round(SH * k);
+    var x = c.getContext('2d');
+    x.scale(k, k);
+    x.fillStyle = BIANCO; x.fillRect(0, 0, SW, SH);
+    x.textBaseline = 'alphabetic';
+    function rr(x0, y0, w, h, r) {
+      x.beginPath();
+      x.moveTo(x0 + r, y0); x.lineTo(x0 + w - r, y0); x.quadraticCurveTo(x0 + w, y0, x0 + w, y0 + r);
+      x.lineTo(x0 + w, y0 + h - r); x.quadraticCurveTo(x0 + w, y0 + h, x0 + w - r, y0 + h);
+      x.lineTo(x0 + r, y0 + h); x.quadraticCurveTo(x0, y0 + h, x0, y0 + h - r);
+      x.lineTo(x0, y0 + r); x.quadraticCurveTo(x0, y0, x0 + r, y0);
+      x.closePath();
+    }
+    function carta(x0, y0, w, h) { rr(x0, y0, w, h, 10); x.fillStyle = CARTA; x.fill(); }
+    function testo(t, px, y, font, colore, allinea) { x.font = font + ' ' + F; x.fillStyle = colore; x.textAlign = allinea || 'center'; x.fillText(t, px, y); }
+    function largo(t, font) { x.font = font + ' ' + F; return x.measureText(t).width; }
+    function adatta(t, peso, da, a, max) { var px = da; while (px > a && largo(t, peso + px + 'px') > max) px -= 1; return peso + px + 'px'; }
+    function vuoto(v) { return v === null || v === undefined; }
+    function freccia(cx, cy) { x.lineWidth = 2; x.strokeStyle = NERO; x.beginPath(); x.moveTo(cx - 9, cy - 5); x.lineTo(cx, cy + 4); x.lineTo(cx + 9, cy - 5); x.stroke(); }
+
+    // Intestazione: righe nere, logo DiMar ai lati, al centro l'immagine caricata per questa pagina (se c'è)
+    function riga(x0, x1) { if (x1 - x0 > 2) { x.fillStyle = NERO; x.fillRect(x0, 62.5, x1 - x0, 7.5); } }
+    function logo(x0) {
+      if (!pbiLogoImg) { testo('DiMar', x0 + 73, 78, '50px', NERO); testo('G R O U P', x0 + 73, 92, '700 12px', NERO); return; }
+      var t2 = document.createElement('canvas'); t2.width = pbiLogoImg.naturalWidth; t2.height = pbiLogoImg.naturalHeight;
+      var tx = t2.getContext('2d'); tx.drawImage(pbiLogoImg, 0, 0); tx.globalCompositeOperation = 'source-in'; tx.fillStyle = NERO; tx.fillRect(0, 0, t2.width, t2.height);
+      x.drawImage(t2, x0, 34, 146, 146 * t2.height / t2.width);
+    }
+    var centro = !!(pbiSfondiImg.orelv && pbiSfondi.orelv);
+    riga(2, 58); riga(1601, SW);
+    logo(60); logo(1453);
+    if (centro) {
+      riga(208, 766); riga(880, 1448);
+      pbiSfondoDisegna(x, 'orelv', 772, 10, 104, 108, function () { x.beginPath(); x.rect(768, 0, 112, 124); });
+    } else riga(208, 1448);
+
+    // Filtri: Settimana, Data (tutto l'anno), Stabilimento (Floriano e Valentano)
+    carta(5, 125, 127, 196); carta(138, 125, 380, 196); carta(524, 125, 171, 196);
+    testo('Settimana', 16, 151, '19px', BIANCO, 'left');
+    x.fillStyle = BIANCO; x.fillRect(23, 168, 92, 40);
+    testo(String(d.sett), 31, 196, '20px', NERO, 'left'); freccia(96, 189);
+    testo('Data', 150, 151, '19px', BIANCO, 'left');
+    [[160, '01/01/' + d.anno], [333, '31/12/' + d.anno]].forEach(function (b) {
+      x.fillStyle = BIANCO; x.fillRect(b[0], 170, 165, 48);
+      testo(b[1], b[0] + 11, 202, adatta(b[1], '', 21, 14, 128), NERO, 'left');
+      x.lineWidth = 1; x.strokeStyle = '#B8C0CC'; x.beginPath(); x.moveTo(b[0] + 140, 170); x.lineTo(b[0] + 140, 218); x.stroke();
+      x.lineWidth = 1.3; x.strokeStyle = '#1B2A4A'; x.strokeRect(b[0] + 147, 189, 10, 9); x.beginPath(); x.moveTo(b[0] + 147, 192); x.lineTo(b[0] + 157, 192); x.stroke();
+    });
+    x.lineWidth = 4; x.strokeStyle = BIANCO; x.lineCap = 'round';
+    x.beginPath(); x.moveTo(180, 243); x.lineTo(487, 243); x.stroke(); x.lineCap = 'butt';
+    [180, 487].forEach(function (px) { x.beginPath(); x.arc(px, 243, 16, 0, 2 * Math.PI); x.fillStyle = BIANCO; x.fill(); });
+    testo('Stabilimento', 535, 151, adatta('Stabilimento', '', 19, 14, 150), BIANCO, 'left');
+    x.fillStyle = BIANCO; x.fillRect(542, 168, 136, 38);
+    testo('Selezioni...', 549, 195, adatta('Selezioni...', '', 19, 13, 100), NERO, 'left'); freccia(661, 186);
+
+    // Totale Ore Spedite, con l'obiettivo Chemin e la differenza (rossa sotto l'obiettivo, verde sopra)
+    carta(702, 125, 478, 196);
+    var cx = 941, diff = !vuoto(d.tot) && !vuoto(d.obiettivo) ? d.tot - d.obiettivo : null, colTot = diff !== null && diff > 0 ? VERDE : ROSSO;
+    testo('Totale Ore Spedite', cx, 165, adatta('Totale Ore Spedite', '700 ', 34, 20, 440), BIANCO);
+    var st = vuoto(d.tot) ? '(Vuoto)' : pbiNumero(d.tot, 0);
+    testo(st, cx, 258, adatta(st, '700 ', 84, 36, 440), colTot);
+    var a1 = 'Obiettivo Chemin: ' + (vuoto(d.obiettivo) ? '--' : pbiNumero(d.obiettivo, 0)), a2 = diff === null ? '' : '(' + pbiNumero(diff, 0) + ')';
+    var fo = adatta(a1 + ' ' + a2, '', 26, 14, 456), l1 = largo(a1, fo), l2 = a2 ? largo(' ' + a2, fo) : 0, x1 = cx - (l1 + l2) / 2;
+    testo(a1, x1, 288, fo, GIALLO, 'left');
+    if (a2) {
+      testo(' ' + a2, x1 + l1, 288, fo, colTot, 'left');
+      var sp = largo(' ', fo); x.fillStyle = colTot; x.fillRect(x1 + l1 + sp, 292, l2 - sp, 2);
+    }
+
+    // Valentano e Floriano: riquadri col bordo colorato
+    [[1184, 'Valentano', VAL, d.val], [1418, 'Floriano', FLO, d.flo]].forEach(function (b) {
+      rr(b[0] + 2.5, 127.5, 225, 191, 10); x.fillStyle = CARTA; x.fill(); x.lineWidth = 5; x.strokeStyle = b[2]; x.stroke();
+      testo(b[1], b[0] + 115, 165, '28px', b[2]);
+      var sv = vuoto(b[3]) ? '(Vuoto)' : pbiNumero(b[3], 0);
+      testo(sv, b[0] + 115, 263, adatta(sv, '700 ', 52, 24, 200), b[2]);
+    });
+
+    // Grafico: colonne Floriano (sotto) + Valentano (sopra), totale in cima, linea gialla dell'obiettivo Chemin
+    carta(5, 328, 1643, SH - 328 + 12);
+    var LEG = [['Floriano', FLO, false], ['Valentano', VAL, false], ['Chemin', GIALLO, true]];
+    var lungh = LEG.map(function (l) { return 18 + largo(l[0], '24px'); }), totLeg = lungh.reduce(function (a, b) { return a + b; }, 0) + 12 * (LEG.length - 1), lx = 825 - totLeg / 2;
+    LEG.forEach(function (l, i) {
+      x.beginPath(); x.arc(lx + 6, 356, 6, 0, 2 * Math.PI);
+      if (l[2]) { x.fillStyle = l[1]; x.fill(); } else { x.lineWidth = 2.5; x.strokeStyle = l[1]; x.stroke(); }
+      testo(l[0], lx + 16, 364, '24px', BIANCO, 'left');
+      lx += lungh[i] + 12;
+    });
+    var gg = d.giorni, ng = gg.length;
+    if (ng) {
+      var PX0 = 117, PX1 = 1537, YT = 392, YB = 892, passo = (PX1 - PX0) / ng, lb = Math.min(passo * 0.944, 520);
+      var massimo = 0;
+      gg.forEach(function (g) { massimo = Math.max(massimo, Math.max(0, g.flo || 0) + Math.max(0, g.val || 0), g.href || 0); });
+      var mezzo = massimo > 0 ? Math.pow(10, Math.floor(Math.log(massimo) / Math.LN10)) / 2 : 1, cima = massimo > 0 ? Math.ceil(massimo / mezzo) * mezzo : 1;
+      var yDi = function (v) { return YB - (YB - YT) * v / cima; };
+      function dentro(n, cxx, y0, y1, colore) {
+        if (y1 - y0 < 28) return;
+        var s2 = pbiNumero(n, 0), f2 = adatta(s2, '', 24, 14, lb - 16);
+        testo(s2, cxx, (y0 + y1) / 2 + 9, f2, colore);
+      }
+      gg.forEach(function (g, i) {
+        var cxx = PX0 + passo * (i + 0.5), x0 = cxx - lb / 2, f = Math.max(0, g.flo || 0), v = Math.max(0, g.val || 0), tot = f + v;
+        if (f > 0) { var yf = yDi(f); x.fillStyle = FLO_F; x.fillRect(x0, yf, lb, YB - yf); x.lineWidth = 4; x.strokeStyle = FLO; x.strokeRect(x0 + 2, yf + 2, lb - 4, Math.max(1, YB - yf - 4)); dentro(f, cxx, yf, YB, FLO); }
+        if (v > 0) { var y0v = yDi(tot), y1v = yDi(f); x.fillStyle = VAL_F; x.fillRect(x0, y0v, lb, y1v - y0v); x.lineWidth = 4; x.strokeStyle = VAL; x.strokeRect(x0 + 2, y0v + 2, lb - 4, Math.max(1, y1v - y0v - 4)); dentro(v, cxx, y0v, y1v, VAL); }
+        if (tot > 0) testo(pbiNumero(tot, 0), cxx, yDi(tot) - 13, adatta(pbiNumero(tot, 0), '', 24, 14, lb), BIANCO);
+        var t = g.data.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        testo(t, cxx, 919, adatta(t, '', 22, 12, passo - 10), BIANCO);
+      });
+      // la linea dell'obiettivo passa sopra le colonne, con i valori in giallo
+      var punti = [];
+      gg.forEach(function (g, i) { if (!vuoto(g.href)) punti.push([PX0 + passo * (i + 0.5), yDi(g.href), g.href]); });
+      if (punti.length > 1) {
+        x.lineWidth = 5; x.strokeStyle = GIALLO; x.lineJoin = 'round'; x.beginPath();
+        punti.forEach(function (pt, j) { if (j) x.lineTo(pt[0], pt[1]); else x.moveTo(pt[0], pt[1]); });
+        x.stroke();
+      }
+      punti.forEach(function (pt) {
+        x.beginPath(); x.arc(pt[0], pt[1], 6.5, 0, 2 * Math.PI); x.fillStyle = GIALLO; x.fill();
+        testo(pbiNumero(pt[2], 0), pt[0], pt[1] - 20, '24px', GIALLO);
+      });
+    }
     return { src: c.toDataURL('image/png'), ratio: c.height / c.width };
   }
 
@@ -3227,7 +3458,7 @@ kbd {
       if (/\(400\)/.test(m) || /Chanel Reactualizzato|salesLine|salesShipmentLine/i.test(m)) {
         throw new Error(GUID.test(pbi.reportSped)
           ? 'Il report indicato in «Report di CHANEL-AGGIORNAMENTO CONSEGNE» non ha accettato la query: controlla che sia proprio il report della pagina Performance Spedizioni. ' + m
-          : 'Il report usato (' + (GUID.test(pbi.reportOre) ? 'quello di CHANEL-ORE SPEDITE' : 'quello delle efficienze') + ') non ha accettato la query: se la pagina Performance Spedizioni sta in un altro report, apri «Avanzate» e incolla il suo indirizzo in «Report di CHANEL-AGGIORNAMENTO CONSEGNE». ' + m);
+          : 'Il report usato (' + (GUID.test(pbi.reportOre) ? 'quello di CC_Spedito' : 'quello delle efficienze') + ') non ha accettato la query: se la pagina Performance Spedizioni sta in un altro report, apri «Avanzate» e incolla il suo indirizzo in «Report di CHANEL-AGGIORNAMENTO CONSEGNE». ' + m);
       }
       throw e;
     }
@@ -3501,6 +3732,7 @@ kbd {
   var PBI_PAGINE = {
     pannello: { nome: 'Pannello di Controllo', leggi: pbiLeggi, elenco: pbiElenco, vuoto: pbiVuoto, senzaGiorno: pbiVuoto, immagine: pbiImmagine },
     // «grafico» qui vuol dire solo che la pagina accetta un'immagine caricata: va al centro dell'intestazione
+    orelv: { nome: 'Ore Spedite LV', quale: 'orelv', grafico: true, immagineDove: 'va al centro dell\'intestazione', leggi: pbiLeggiOreLv, elenco: pbiElencoOreLv, vuoto: pbiVuotoOreLv, senzaGiorno: pbiSenzaGiornoOreLv, immagine: pbiImmagineOreLv },
     ore: { nome: 'Ore Spedite Chanel', quale: 'ore', grafico: true, immagineDove: 'va al centro dell\'intestazione', leggi: pbiLeggiOre, elenco: pbiElencoOre, vuoto: pbiVuotoOre, senzaGiorno: pbiSenzaGiornoOre, immagine: pbiImmagineOre },
     // una pagina per riquadro, ognuno col suo tema: si usa solo nella scheda CHANEL-AGGIORNAMENTO CONSEGNE
     sped: { nome: 'Performance Spedizioni Chanel', quale: 'sped', solo: 'chanel', grafico: true, immagineDove: 'va al centro dell\'intestazione', leggi: pbiLeggiSped, elenco: pbiElencoSped, vuoto: pbiVuotoSped, senzaGiorno: pbiVuotoSped, immagine: pbiImmagineSped },
@@ -3513,7 +3745,7 @@ kbd {
     rma: { nome: 'RMA', grafico: true, leggi: function (g) { return pbiLeggiReparto(PBI_RMA, g); }, elenco: pbiElencoReparto, vuoto: pbiVuotoReparto, senzaGiorno: pbiSenzaGiornoReparto, immagine: pbiImmagineReparto }
   };
   function pbiPagina() { return PBI_PAGINE[$('#pbi-pagina').value] || PBI_PAGINE.pannello; }
-  // Entrando in CHANEL-ORE SPEDITE si propone la sua pagina; tornando alle efficienze si rimette quella di prima
+  // Entrando in CC_Spedito si propone la sua pagina; tornando alle efficienze si rimette quella di prima
   // In CHANEL-AGGIORNAMENTO CONSEGNE c'è solo la sua pagina; le altre schede non la vedono.
   function pbiPaginaPerScheda() {
     var sel = $('#pbi-pagina');
@@ -3524,8 +3756,8 @@ kbd {
     spedStato();
     oreCollDisegna();
     var bq = attivo === 'chanel' ? spedBlocco(state, $('#pbi-box').value) : null;
-    var propria = attivo === 'chanel' ? spedPaginaDi(bq && bq.b) : { ore: 'ore' }[attivo];
-    var vuole = propria || (sel.value === 'ore' || sel.value === 'sped' ? (PBI_PAGINE[pbi.pagina] && pbi.pagina !== 'ore' && pbi.pagina !== 'sped' ? pbi.pagina : 'pannello') : sel.value);
+    var propria = attivo === 'chanel' ? spedPaginaDi(bq && bq.b) : { ore: 'ore', lvsped: 'orelv' }[attivo];
+    var vuole = propria || (sel.value === 'ore' || sel.value === 'sped' || sel.value === 'orelv' ? (PBI_PAGINE[pbi.pagina] && pbi.pagina !== 'ore' && pbi.pagina !== 'sped' && pbi.pagina !== 'orelv' ? pbi.pagina : 'pannello') : sel.value);
     if (sel.value !== vuole) { sel.value = vuole; sel.dispatchEvent(new Event('change')); }
     pbiDisegna();
   }
@@ -3697,11 +3929,23 @@ kbd {
       var gr = g ? g[1] : (!r && soli.length === 2 ? soli[0] : ''), rp = r ? r[1] : (soli.length === 2 && !g ? soli[1] : soli.length === 1 ? soli[0] : '');
       if (gr !== pbi.groupSped || rp !== pbi.reportSped) pbi.datasetSped = '';
       pbi.groupSped = gr; pbi.reportSped = rp;
-      $('#pbi-sped-stato').textContent = !t ? 'Vuoto: la pagina si legge dallo stesso report di CHANEL-ORE SPEDITE (o, se anche quello è vuoto, dal report qui sopra).' : rp ? 'Report riconosciuto' + (gr ? ', con la sua area di lavoro.' : ' (stessa area di lavoro delle efficienze).') : 'Non trovo l\'ID del report in questo testo: incolla l\'indirizzo intero della pagina del report.';
+      $('#pbi-sped-stato').textContent = !t ? 'Vuoto: la pagina si legge dallo stesso report di CC_Spedito (o, se anche quello è vuoto, dal report qui sopra).' : rp ? 'Report riconosciuto' + (gr ? ', con la sua area di lavoro.' : ' (stessa area di lavoro delle efficienze).') : 'Non trovo l\'ID del report in questo testo: incolla l\'indirizzo intero della pagina del report.';
     }
     $('#pbi-sped-indirizzo').value = pbi.spedIndirizzo;
     spedLeggiIndirizzo();
     $('#pbi-sped-indirizzo').addEventListener('input', function (e) { pbi.spedIndirizzo = e.target.value; spedLeggiIndirizzo(); pbiSalva(); });
+    // Report della pagina «Ore Spedite LV»: stesso modo
+    function lvLeggiIndirizzo() {
+      var t = pbi.lvIndirizzo.trim(), U = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
+      var g = new RegExp('groups/(' + U + ')', 'i').exec(t), r = new RegExp('reports/(' + U + ')', 'i').exec(t), soli = t.match(new RegExp(U, 'g')) || [];
+      var gr = g ? g[1] : (!r && soli.length === 2 ? soli[0] : ''), rp = r ? r[1] : (soli.length === 2 && !g ? soli[1] : soli.length === 1 ? soli[0] : '');
+      if (gr !== pbi.groupLv || rp !== pbi.reportLv) pbi.datasetLv = '';
+      pbi.groupLv = gr; pbi.reportLv = rp;
+      $('#pbi-lv-stato').textContent = !t ? 'Vuoto: la pagina si legge dallo stesso report di CC_Spedito (o, se anche quello è vuoto, dal report qui sopra).' : rp ? 'Report riconosciuto' + (gr ? ', con la sua area di lavoro.' : ' (stessa area di lavoro delle efficienze).') : 'Non trovo l\'ID del report in questo indirizzo.';
+    }
+    $('#pbi-lv-indirizzo').value = pbi.lvIndirizzo;
+    lvLeggiIndirizzo();
+    $('#pbi-lv-indirizzo').addEventListener('input', function (e) { pbi.lvIndirizzo = e.target.value; lvLeggiIndirizzo(); pbiSalva(); });
     $('#bar-ms-entra').addEventListener('click', function () {
       if (!GUID.test(pbi.clientId.trim())) { toast('Manca l\'ID dell\'applicazione Microsoft: arriva con le impostazioni del Worker, oppure lo scrive chi amministra DiMail nel pannello Power BI.'); return; }
       pbiAvvisi = true;
@@ -3775,7 +4019,7 @@ kbd {
       });
     });
     if (PBI_PAGINE[pbi.pagina]) $('#pbi-pagina').value = pbi.pagina;
-    $('#pbi-pagina').addEventListener('change', function (e) { if (e.target.value !== 'ore' && e.target.value !== 'sped') { pbi.pagina = e.target.value; pbiSalva(); } sfondoMostra(); });
+    $('#pbi-pagina').addEventListener('change', function (e) { if (e.target.value !== 'ore' && e.target.value !== 'sped' && e.target.value !== 'orelv') { pbi.pagina = e.target.value; pbiSalva(); } sfondoMostra(); });
     sfondoMostra();
     pbiPaginaPerScheda();
     pbiDisegna();
@@ -3794,7 +4038,7 @@ kbd {
     return /^https:\/\/[^\s/?#]+(\/[^\s?#]*)?$/i.test(u) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/[^\s?#]*)?$/i.test(u);
   }
   // Le schede che il Worker sa spedire da solo, ognuna con le sue impostazioni
-  var AUTO_SCHEDE = { eff: 1, ore: 1, chanel: 1 };
+  var AUTO_SCHEDE = { eff: 1, ore: 1, chanel: 1, lvsped: 1 };
   // Gestione da DiMail: indirizzo del Worker, e-mail di chi gestisce e riconoscimento del browser (dopo il codice per e-mail).
   // Solo in questo browser, mai nelle impostazioni copiate.
   // base: per ogni scheda, il «salvato» delle impostazioni del Worker da cui partono quelle di questo browser
@@ -3909,6 +4153,7 @@ kbd {
       if (GUID.test(pbi.clientId)) o.clientId = pbi.clientId;
       if (GUID.test(pbi.reportOre)) { o.reportOre = pbi.reportOre; if (GUID.test(pbi.groupOre)) o.groupOre = pbi.groupOre; }
       if (GUID.test(pbi.reportSped)) { o.reportSped = pbi.reportSped; if (GUID.test(pbi.groupSped)) o.groupSped = pbi.groupSped; }
+      if (GUID.test(pbi.reportLv)) { o.reportLv = pbi.reportLv; if (GUID.test(pbi.groupLv)) o.groupLv = pbi.groupLv; }
       var usate = Object.keys(mod.auto || {}).map(function (k) { return mod.auto[k]; });
       // nelle consegne le pagine sono quelle dei riquadri; Performance Spedizioni senza immagine sua usa quella di Ore Spedite
       if (attivo === 'chanel') { if (spedTemi(mod).length) usate.push('sped', 'ore'); if (spedRiquadriOre(mod).length) usate.push('ore'); }
@@ -3920,7 +4165,7 @@ kbd {
     var riassunto = (quanti === 1 ? '1 riquadro automatico' : quanti + ' riquadri automatici') + ', ' + (dest.ok.length === 1 ? '1 destinatario' : dest.ok.length + ' destinatari');
     var avvisi = (dest.ok.length ? '' : ' Attenzione: la lista mail è vuota.') +
       (!String(m.apertura || '').trim() ? ' Il testo di apertura è vuoto: nella mail automatica ci sarà quello predefinito, con la data del giorno.'
-        : /\{\s*(data([\s_-]*completa)?|settimana)\s*\}/i.test(m.apertura) ? '' : ' Attenzione: nel testo di apertura manca ' + (attivo === 'ore' ? '{settimana}' : '{data}') + ', quindi la mail partirà senza ' + (attivo === 'ore' ? 'la settimana.' : 'la data del giorno.'));
+        : /\{\s*(data([\s_-]*completa)?|settimana)\s*\}/i.test(m.apertura) ? '' : ' Attenzione: nel testo di apertura manca ' + (attivo === 'ore' || attivo === 'lvsped' ? '{settimana}' : '{data}') + ', quindi la mail partirà senza ' + (attivo === 'ore' ? 'la settimana.' : 'la data del giorno.'));
     return { testo: testo, nome: modello(attivo).nome, riassunto: riassunto, avvisi: avvisi };
   }
   $('#auto-copia').addEventListener('click', function () {
@@ -4078,7 +4323,7 @@ kbd {
       if (k === 'clientId' && GUID.test(pbi.clientId)) return;   // l'applicazione di questo browser resta la sua
       $(campi[k]).value = P[k]; $(campi[k]).dispatchEvent(new Event('input'));
     });
-    [['reportOre', 'groupOre', '#pbi-ore-indirizzo'], ['reportSped', 'groupSped', '#pbi-sped-indirizzo']].forEach(function (x) {
+    [['reportOre', 'groupOre', '#pbi-ore-indirizzo'], ['reportSped', 'groupSped', '#pbi-sped-indirizzo'], ['reportLv', 'groupLv', '#pbi-lv-indirizzo']].forEach(function (x) {
       if (!GUID.test(String(P[x[0]] || ''))) return;
       $(x[2]).value = GUID.test(String(P[x[1]] || '')) ? 'https://app.powerbi.com/groups/' + P[x[1]] + '/reports/' + P[x[0]] : P[x[0]];
       $(x[2]).dispatchEvent(new Event('input'));
@@ -4273,7 +4518,7 @@ kbd {
       imgsAll[qui] = {}; imgs = imgsAll[qui];
       riepilogo.report = qui;
       if (cfg.imp.pbi) ['tenant', 'group', 'report'].forEach(function (k) { if (GUID.test(String(cfg.imp.pbi[k] || '').trim())) pbi[k] = String(cfg.imp.pbi[k]).trim(); });
-      ['groupOre', 'reportOre', 'groupSped', 'reportSped'].forEach(function (k) { pbi[k] = cfg.imp.pbi && GUID.test(String(cfg.imp.pbi[k] || '').trim()) ? String(cfg.imp.pbi[k]).trim() : ''; });
+      ['groupOre', 'reportOre', 'groupSped', 'reportSped', 'groupLv', 'reportLv'].forEach(function (k) { pbi[k] = cfg.imp.pbi && GUID.test(String(cfg.imp.pbi[k] || '').trim()) ? String(cfg.imp.pbi[k]).trim() : ''; });
       pbi.dataset = ''; pbi.nomeReport = ''; pbi.datasetOre = ''; pbi.datasetSped = '';
       pbiSfondiImposta(cfg.imp.pbi ? (cfg.imp.pbi.sfondi || (cfg.imp.pbi.sfondoLV ? { lv: cfg.imp.pbi.sfondoLV } : null)) : null);
       pbiTok = { access: String(cfg.token || ''), refresh: '', scade: Date.now() + 40 * 60000, utente: '' };
