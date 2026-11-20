@@ -273,12 +273,20 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .cmd-coppia > [hidden] { display: none; }
 .comandi input[type="date"] { flex: 1 1 auto; min-width: 0; font: inherit; font-size: 14px; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; }
 .comandi input[type="date"]:hover, .comandi input[type="email"]:hover { border-color: var(--muted); }
+/* riquadri che si compilano da soli: sotto i comandi sugli schermi larghi, in fondo (dopo l'anteprima) sugli altri */
+.colonna-dx { display: contents; }
+.riquadri-auto { order: 1; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
 @media (min-width: 1600px) {
   .wrap { max-width: 1780px; }
   .preview-col { grid-template-columns: minmax(0, 1fr) 340px; column-gap: 20px; align-items: start; }
   .preview-col > * { grid-column: 1; }
   .preview-col > .bar { grid-column: 1 / -1; }
-  .preview-col > .comandi { grid-column: 2; grid-row: 2; grid-template-columns: minmax(0, 1fr); gap: 0; position: sticky; top: 16px; }
+  /* la colonna resta in vista scorrendo l'anteprima, ma solo se entra tutta nella finestra (classe «ferma», messa dallo
+     script): se è più alta scorre con la pagina, così non resta mai tagliata */
+  .preview-col > .colonna-dx { grid-column: 2; grid-row: 2; display: grid; gap: 16px; align-content: start; }
+  .preview-col > .colonna-dx.ferma { position: sticky; top: 16px; }
+  .colonna-dx > .comandi { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .colonna-dx > .riquadri-auto { order: 0; }
   .comandi .cmd-blocco + .cmd-blocco { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 14px; }
 }
 @media (max-width: 520px) { #mail { padding: 20px 18px; } }
@@ -406,7 +414,7 @@ kbd {
       </fieldset>
 
       <details class="piu" id="altro">
-      <summary class="altro-testa"><span class="altro-freccia" aria-hidden="true"></span><span class="altro-nome">Altre impostazioni</span><span class="unit">Power BI · Invio automatico</span></summary>
+      <summary class="altro-testa"><span class="altro-freccia" aria-hidden="true"></span><span class="altro-nome">Altre impostazioni</span><span class="unit">Power BI</span></summary>
       <div class="altro-corpo">
       <fieldset class="pbi" id="pbi">
         <legend>Power BI</legend>
@@ -480,36 +488,6 @@ kbd {
         </div>
       </fieldset>
 
-      <fieldset class="pbi" id="auto">
-        <legend>Invio automatico</legend>
-        <div class="stack" id="auto-corpo">
-          <span class="big-label">RIQUADRI CHE SI COMPILANO DA SOLI</span>
-          <div class="stack" id="auto-lista"></div>
-          <div class="field" id="auto-nexus-campo">
-            <label for="auto-nexus">Indirizzo di NEXUS</label>
-            <input type="url" id="auto-nexus" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="https://…">
-          </div>
-          <div class="field">
-            <label for="auto-oggetto">Oggetto della mail</label>
-            <input type="text" id="auto-oggetto">
-          </div>
-          <div class="field">
-            <label for="auto-mittente">Nome del mittente</label>
-            <input type="text" id="auto-mittente" autocomplete="off" placeholder="Nome Cognome">
-          </div>
-          <div class="field">
-            <label for="auto-firma">Firma</label>
-            <textarea id="auto-firma" rows="4" spellcheck="false" placeholder="Nome Cognome&#10;Ruolo&#10;Azienda · telefono"></textarea>
-          </div>
-          <div class="field">
-            <label for="gest-worker">Indirizzo del Worker</label>
-            <input type="url" id="gest-worker" spellcheck="false" autocapitalize="off" autocomplete="off">
-          </div>
-          <div class="pbi-row">
-            <button type="button" class="btn primary" id="auto-copia">Copia impostazioni per il Worker</button>
-          </div>
-        </div>
-      </fieldset>
 
       <button type="button" class="link" id="reset">Ripristina predefiniti</button>
       </div>
@@ -520,6 +498,7 @@ kbd {
       <div class="bar">
         <span class="lbl"><b id="p-nome"></b> · riquadri <span id="p-larg"></span> px<span id="p-zoom"></span></span>
       </div>
+      <div class="colonna-dx" id="colonna-dx">
       <aside class="comandi" id="comandi" aria-label="Comandi della mail">
         <div class="cmd-blocco" aria-label="Accesso a Power BI">
           <span class="pbi-stato"><span class="pbi-dot" id="bar-ms-dot"></span><span id="bar-ms-stato">Power BI: non collegato</span></span>
@@ -557,6 +536,39 @@ kbd {
           </div>
         </div>
       </aside>
+      <aside class="riquadri-auto" id="riquadri-auto" aria-label="Riquadri che si compilano da soli">
+        <fieldset class="pbi" id="auto">
+          <legend>Invio automatico</legend>
+          <div class="stack" id="auto-corpo">
+            <span class="big-label">RIQUADRI CHE SI COMPILANO DA SOLI</span>
+            <div class="stack" id="auto-lista"></div>
+            <div class="field" id="auto-nexus-campo">
+              <label for="auto-nexus">Indirizzo di NEXUS</label>
+              <input type="url" id="auto-nexus" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="https://…">
+            </div>
+            <div class="field">
+              <label for="auto-oggetto">Oggetto della mail</label>
+              <input type="text" id="auto-oggetto">
+            </div>
+            <div class="field">
+              <label for="auto-mittente">Nome del mittente</label>
+              <input type="text" id="auto-mittente" autocomplete="off" placeholder="Nome Cognome">
+            </div>
+            <div class="field">
+              <label for="auto-firma">Firma</label>
+              <textarea id="auto-firma" rows="4" spellcheck="false" placeholder="Nome Cognome&#10;Ruolo&#10;Azienda · telefono"></textarea>
+            </div>
+            <div class="field">
+              <label for="gest-worker">Indirizzo del Worker</label>
+              <input type="url" id="gest-worker" spellcheck="false" autocapitalize="off" autocomplete="off">
+            </div>
+            <div class="pbi-row">
+              <button type="button" class="btn primary" id="auto-copia">Copia impostazioni per il Worker</button>
+            </div>
+          </div>
+        </fieldset>
+      </aside>
+      </div>
       <input type="file" id="f-file" accept="image/*" hidden>
 
       <div class="stage"><div id="mail"></div></div>
@@ -4099,7 +4111,7 @@ kbd {
     var quanti = attivo === 'chanel' ? spedAutoRiquadri(m).length : Object.keys(m.auto || {}).length;
     if (!quanti) { toast(attivo === 'chanel' ? 'Nessun riquadro si compila: a sinistra scegli pagina, collezione e descrizioni.' : 'Scegli prima almeno una pagina per un riquadro.'); return null; }
     var usaNexus = Object.keys(m.auto).some(function (k) { return m.auto[k] === 'nexus' || m.auto[k] === 'nexus_note'; });
-    if (usaNexus && !nexusValido(m.nexusUrl)) { toast('Scrivi l\'indirizzo di NEXUS (comincia con https://).'); apriAltro(); $('#auto-nexus').focus(); return null; }
+    if (usaNexus && !nexusValido(m.nexusUrl)) { toast('Scrivi l\'indirizzo di NEXUS (comincia con https://).'); $('#auto-nexus').focus(); return null; }
     var prima = state; state = m;
     var dest = indirizzi();
     state = prima;
@@ -4156,7 +4168,7 @@ kbd {
   var gestDopo = null;
   function gestNonRiconosciuto(o) { return !!(o && o.stato === 401 && o.j && o.j.sessione === false); }
   function gestConAccesso(azione) {
-    if (!gestWorker()) { toast('L\'indirizzo del Worker (riquadro «Invio automatico») non è valido.'); apriAltro(); $('#gest-worker').focus(); return; }
+    if (!gestWorker()) { toast('L\'indirizzo del Worker (riquadro «Invio automatico») non è valido.'); $('#gest-worker').focus(); return; }
     if (!gestEmail()) { toast('Scrivi la tua e-mail.'); $('#gest-email').focus(); return; }
     if (!gestSessione()) { gestChiediCodice(azione); return; }
     azione().then(function (o) { if (gestNonRiconosciuto(o)) { gest.sessione = ''; gestSalva(); gestDisegna(); gestChiediCodice(azione); } });
@@ -4616,7 +4628,15 @@ kbd {
   }
 
   $('#editor').addEventListener('submit', function (e) { e.preventDefault(); });
-  // «Altre impostazioni» (Power BI e invio automatico): chiusa sotto la freccia, il browser ricorda se l'hai aperta
+  // Colonna a destra dell'anteprima (comandi e riquadri che si compilano da soli): resta ferma scorrendo solo se entra tutta
+  (function () {
+    var col = $('#colonna-dx');
+    function misura() { col.classList.toggle('ferma', col.getBoundingClientRect().height <= window.innerHeight - 32); }
+    if (window.ResizeObserver) new ResizeObserver(misura).observe(col);
+    window.addEventListener('resize', misura);
+    misura();
+  })();
+  // «Altre impostazioni» (Power BI): chiusa sotto la freccia, il browser ricorda se l'hai aperta
   var ALTRO_KEY = 'dimail-altro-aperto-v1';
   function apriAltro() { var d = $('#altro'); if (d && !d.open) d.open = true; }
   try { if (localStorage.getItem(ALTRO_KEY) === '1') $('#altro').open = true; } catch (e) {}
