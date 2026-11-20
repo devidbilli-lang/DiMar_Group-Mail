@@ -538,7 +538,6 @@ kbd {
       </aside>
       <aside class="riquadri-auto" id="riquadri-auto" aria-label="Impostazioni riquadri">
         <fieldset class="pbi" id="auto">
-          <legend>Invio automatico</legend>
           <div class="stack" id="auto-corpo">
             <span class="big-label">IMPOSTAZIONI RIQUADRI</span>
             <div class="stack" id="auto-lista"></div>
@@ -4029,7 +4028,7 @@ kbd {
     var q = gestSessione() ? pbiDataOra(new Date(gest.scade)) : null;
     $('#gest-stato').textContent = !String(gest.email || '').trim() ? 'Per chi gestisce questa mail: con la tua e-mail autorizzata le impostazioni vanno al Worker senza entrare nella sua pagina.'
       : !gestEmail() ? 'Scrivi un\'e-mail valida.'
-      : !gestWorker() ? 'L\'indirizzo del Worker (riquadro «Invio automatico») non è valido.'
+      : !gestWorker() ? 'L\'indirizzo del Worker (riquadro «Impostazioni riquadri») non è valido.'
       : q ? 'Browser riconosciuto fino al ' + q[0] + '.'
       : 'Al primo invio ti arriva un codice a ' + gestEmail() + '.';
     pbiDisegna();
@@ -4168,7 +4167,7 @@ kbd {
   var gestDopo = null;
   function gestNonRiconosciuto(o) { return !!(o && o.stato === 401 && o.j && o.j.sessione === false); }
   function gestConAccesso(azione) {
-    if (!gestWorker()) { toast('L\'indirizzo del Worker (riquadro «Invio automatico») non è valido.'); $('#gest-worker').focus(); return; }
+    if (!gestWorker()) { toast('L\'indirizzo del Worker (riquadro «Impostazioni riquadri») non è valido.'); $('#gest-worker').focus(); return; }
     if (!gestEmail()) { toast('Scrivi la tua e-mail.'); $('#gest-email').focus(); return; }
     if (!gestSessione()) { gestChiediCodice(azione); return; }
     azione().then(function (o) { if (gestNonRiconosciuto(o)) { gest.sessione = ''; gestSalva(); gestDisegna(); gestChiediCodice(azione); } });
