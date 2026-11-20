@@ -316,6 +316,15 @@ kbd {
 .pbi-ris dt { color: var(--muted); }
 .pbi-ris dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
 .pbi details summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+/* dopo il saluto finale: Power BI e invio automatico restano chiusi sotto una freccia */
+.piu { border-top: 1px solid var(--line); padding-top: 16px; min-width: 0; }
+.altro-testa { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; user-select: none; }
+.altro-testa::-webkit-details-marker { display: none; }
+.altro-nome { font-family: var(--f-mono); font-size: 11.5px; font-weight: 500; letter-spacing: .09em; text-transform: uppercase; color: var(--fg); }
+.altro-testa:hover .altro-nome { text-decoration: underline; text-underline-offset: 3px; }
+.altro-freccia { width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform .15s; margin: 0 4px 0 2px; flex: none; }
+.piu[open] .altro-freccia { transform: rotate(45deg); }
+.altro-corpo { display: grid; gap: 26px; margin-top: 20px; min-width: 0; }
 .pbi details .stack { margin-top: 10px; }
 </style>
 </head>
@@ -389,6 +398,9 @@ kbd {
         </div>
       </fieldset>
 
+      <details class="piu" id="altro">
+      <summary class="altro-testa"><span class="altro-freccia" aria-hidden="true"></span><span class="altro-nome">Altre impostazioni</span><span class="unit">Power BI · Invio automatico</span></summary>
+      <div class="altro-corpo">
       <fieldset class="pbi" id="pbi">
         <legend>Power BI</legend>
         <div class="stack">
@@ -503,6 +515,8 @@ kbd {
       </fieldset>
 
       <button type="button" class="link" id="reset">Ripristina predefiniti</button>
+      </div>
+      </details>
     </form>
 
     <section class="preview-col" aria-label="Anteprima della mail">
@@ -1676,7 +1690,7 @@ kbd {
     var id = pbi.clientId.trim();
     if (!GUID.test(id)) {
       pbiEsito('err', 'Inserisci prima l\'ID applicazione (client): è un codice di 36 caratteri con i trattini, e lo trovi nella registrazione in Entra.');
-      $('#pbi-client').focus();
+      apriAltro(); $('#pbi-client').focus();
       return;
     }
     if (!GUID.test(pbi.tenant.trim())) { pbiEsito('err', 'ID del tenant non valido: controllalo in «Avanzate».'); return; }
@@ -3057,7 +3071,7 @@ kbd {
     if (!coll) return '<p>Scegli la collezione della sezione (o scrivila nel titolo, per esempio «COLLEZIONE 27C»).</p>';
     // senza l'elenco letto da Power BI si vedono solo quelle scelte (giuste così): le altre compaiono dopo la lettura
     var tutte = spedDescrizioni(coll), fuori = desc.filter(function (x) { return tutte.indexOf(x) === -1; });
-    var leggi = 'premi «Leggi collezioni e descrizioni» nel pannello Power BI (senza accesso Microsoft le chiede al Worker, con la tua e-mail scritta sopra l\'anteprima)';
+    var leggi = 'premi «Leggi collezioni e descrizioni» nel pannello Power BI, in «Altre impostazioni» qui sotto (senza accesso Microsoft le chiede al Worker, con la tua e-mail scritta sopra l\'anteprima)';
     var nota = spedElenco ? '' : '<p>Per vedere e aggiungere le altre descrizioni ' + leggi + '.</p>';
     if (!tutte.length && !fuori.length) return '<p>' + (spedElenco ? 'Nel modello la collezione ' + esc(coll) + ' non ha descrizioni: controlla il nome.' : 'Per vedere le descrizioni ' + leggi + '.') + '</p>';
     return nota + tutte.concat(fuori).map(function (x) {
@@ -3503,7 +3517,7 @@ kbd {
   function pbiCompila() {
     if (!pbiScheda()) { pbiEsito('err', 'In questa scheda i riquadri non si compilano da Power BI.'); return; }
     var chiave = $('#pbi-box').value;
-    if (!chiave || chiavi(state).indexOf(chiave) === -1) { pbiEsito('err', 'Scegli il riquadro da compilare.'); $('#pbi-box').focus(); return; }
+    if (!chiave || chiavi(state).indexOf(chiave) === -1) { pbiEsito('err', 'Scegli il riquadro da compilare.'); apriAltro(); $('#pbi-box').focus(); return; }
     var giorno = pbiGiorno();
     if (!giorno) return;
     var dest = imgsAll[attivo], eraPieno = !!dest[chiave];
@@ -3579,10 +3593,10 @@ kbd {
       update();
       pbiEsito(fatti ? 'ok' : 'info', (fatti === 1 ? 'Compilato 1 riquadro' : 'Compilati ' + fatti + ' riquadri') + ' su ' + tot + ', settimana ' + sett + '.' +
         (vuoti.length ? ' Senza valori, lasciati com\'erano: ' + vuoti.join('; ') + '.' : ''), valori);
-      toast((fatti === 1 ? 'Compilato 1 riquadro' : 'Compilati ' + fatti + ' riquadri') + ' su ' + tot + (vuoti.length ? ' (senza valori: ' + vuoti.length + ')' : '') + '. Dettagli nel pannello Power BI.');
+      toast((fatti === 1 ? 'Compilato 1 riquadro' : 'Compilati ' + fatti + ' riquadri') + ' su ' + tot + (vuoti.length ? ' (senza valori: ' + vuoti.length + ')' : '') + '. Dettagli in «Altre impostazioni», pannello Power BI.');
     }, function (e) {
       pbiEsito('err', e.message);
-      toast('Compilazione non riuscita: il motivo è nel pannello Power BI.');
+      toast('Compilazione non riuscita: ' + e.message);
     }).then(function () { pbiOccupato = false; pbiDisegna(); });
   }
   // Senza accesso a Power BI: collezioni e descrizioni le legge il Worker (solo nomi, settimana di oggi)
@@ -3869,7 +3883,7 @@ kbd {
     var quanti = attivo === 'chanel' ? spedAutoRiquadri(m).length : Object.keys(m.auto || {}).length;
     if (!quanti) { toast(attivo === 'chanel' ? 'Nessun riquadro si compila: a sinistra scegli pagina, collezione e descrizioni.' : 'Scegli prima almeno una pagina per un riquadro.'); return null; }
     var usaNexus = Object.keys(m.auto).some(function (k) { return m.auto[k] === 'nexus' || m.auto[k] === 'nexus_note'; });
-    if (usaNexus && !nexusValido(m.nexusUrl)) { toast('Scrivi l\'indirizzo di NEXUS (comincia con https://).'); $('#auto-nexus').focus(); return null; }
+    if (usaNexus && !nexusValido(m.nexusUrl)) { toast('Scrivi l\'indirizzo di NEXUS (comincia con https://).'); apriAltro(); $('#auto-nexus').focus(); return null; }
     var prima = state; state = m;
     var dest = indirizzi();
     state = prima;
@@ -3925,7 +3939,7 @@ kbd {
   var gestDopo = null;
   function gestNonRiconosciuto(o) { return !!(o && o.stato === 401 && o.j && o.j.sessione === false); }
   function gestConAccesso(azione) {
-    if (!gestWorker()) { toast('L\'indirizzo del Worker (riquadro «Invio automatico») non è valido.'); $('#gest-worker').focus(); return; }
+    if (!gestWorker()) { toast('L\'indirizzo del Worker (riquadro «Invio automatico») non è valido.'); apriAltro(); $('#gest-worker').focus(); return; }
     if (!gestEmail()) { toast('Scrivi la tua e-mail.'); $('#gest-email').focus(); return; }
     if (!gestSessione()) { gestChiediCodice(azione); return; }
     azione().then(function (o) { if (gestNonRiconosciuto(o)) { gest.sessione = ''; gestSalva(); gestDisegna(); gestChiediCodice(azione); } });
@@ -4350,6 +4364,13 @@ kbd {
   }
 
   $('#editor').addEventListener('submit', function (e) { e.preventDefault(); });
+  // «Altre impostazioni» (Power BI e invio automatico): chiusa sotto la freccia, il browser ricorda se l'hai aperta
+  var ALTRO_KEY = 'dimail-altro-aperto-v1';
+  function apriAltro() { var d = $('#altro'); if (d && !d.open) d.open = true; }
+  try { if (localStorage.getItem(ALTRO_KEY) === '1') $('#altro').open = true; } catch (e) {}
+  $('#altro').addEventListener('toggle', function () {
+    try { localStorage.setItem(ALTRO_KEY, $('#altro').open ? '1' : '0'); } catch (e) {}
+  });
 
   $('#p-larg').textContent = BOX_W.toLocaleString('it-IT');
   fillFields();
