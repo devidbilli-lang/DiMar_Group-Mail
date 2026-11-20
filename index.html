@@ -995,6 +995,7 @@ kbd {
     update();
     pbiPaginaPerScheda();
     if (!daHash) { try { location.hash = modello(id).hash; } catch (e) {} }
+    gestAggiorna(id, 'scheda');
   }
   $('#tabs').addEventListener('click', function (e) {
     var b = e.target.closest('[data-modello]');
@@ -3798,8 +3799,8 @@ kbd {
   // Solo in questo browser, mai nelle impostazioni copiate.
   // base: per ogni scheda, il «salvato» delle impostazioni del Worker da cui partono quelle di questo browser
   var WORKER_PREDEFINITO = 'https://dimail-auto.devid-billi.workers.dev';
-  var GEST_KEY = 'dimail-gestione-v1', gest = { worker: '', email: '', sessione: '', scade: '', di: '', base: {} };
-  if (!AUTO) { try { var gestLetta = JSON.parse(localStorage.getItem(GEST_KEY) || 'null'); if (gestLetta && typeof gestLetta === 'object') { Object.keys(gest).forEach(function (k) { if (typeof gestLetta[k] === 'string') gest[k] = gestLetta[k]; }); if (gestLetta.base && typeof gestLetta.base === 'object') gest.base = gestLetta.base; } } catch (e) {} }
+  var GEST_KEY = 'dimail-gestione-v1', gest = { worker: '', email: '', sessione: '', scade: '', di: '', base: {}, firma: {} };
+  if (!AUTO) { try { var gestLetta = JSON.parse(localStorage.getItem(GEST_KEY) || 'null'); if (gestLetta && typeof gestLetta === 'object') { Object.keys(gest).forEach(function (k) { if (typeof gestLetta[k] === 'string') gest[k] = gestLetta[k]; }); if (gestLetta.base && typeof gestLetta.base === 'object') gest.base = gestLetta.base; if (gestLetta.firma && typeof gestLetta.firma === 'object') gest.firma = gestLetta.firma; } } catch (e) {} }
   function gestSalva() { if (AUTO) return; try { localStorage.setItem(GEST_KEY, JSON.stringify(gest)); } catch (e) {} }
   function gestWorker() { var w = (String(gest.worker || '').trim() || WORKER_PREDEFINITO).replace(/\/+$/, ''); return /^https:\/\/[^\s\/?#]+$/i.test(w) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/i.test(w) ? w : ''; }
   function gestEmail() { var e = String(gest.email || '').trim().toLowerCase(); return /^[^\s<>"'(),;@]+@[^\s<>"'(),;@]+\.[^\s<>"'(),;@.]+$/.test(e) ? e : ''; }
@@ -3986,11 +3987,19 @@ kbd {
   $('#gest-conferma').addEventListener('click', gestConferma);
   $('#gest-codice').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); gestConferma(); } });
   function gestData(iso) { var q = iso ? pbiDataOra(new Date(iso)) : null; return q ? q[0] + ' alle ' + String(q[1]).slice(0, 5) : ''; }
+  // impronta delle impostazioni di una scheda così come sono qui: se cambia dopo l'ultimo allineamento col Worker,
+  // in questo browser ci sono modifiche non ancora inviate
+  function gestFirma(qui) {
+    var t = JSON.stringify(store.modelli[qui] || null), h = 5381;
+    for (var i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+    return t.length + '-' + h.toString(36);
+  }
   function gestCarica(qui, perche) {
     return gestRichiesta('GET', '/pubblica/config?report=' + encodeURIComponent(qui)).then(function (o) {
       if (o.j && o.j.ok && o.j.config && o.j.config.modello) {
-        gest.base[qui] = String(o.j.config.salvato || ''); gestSalva();
-        if (attivo === qui) gestApplica(o.j.config);
+        gest.base[qui] = String(o.j.config.salvato || '');
+        if (attivo === qui) { gestApplica(o.j.config); gest.firma[qui] = gestFirma(qui); }
+        gestSalva();
         var chi = o.j.config.salvatoDa ? ' da ' + o.j.config.salvatoDa : '';
         toast(perche === 'conflitto'
           ? 'Nel frattempo le impostazioni di ' + o.j.nome + ' sono state cambiate' + chi + ' (' + gestData(o.j.config.salvato) + '): le ho riportate qui. Rifai le tue modifiche e premi di nuovo «Invia impostazioni al Worker».'
@@ -4006,7 +4015,7 @@ kbd {
     return gestRichiesta('POST', '/pubblica', x.testo, { 'X-Dimail-Base': gest.base[qui] || '' }).then(function (o) {
       fine();
       if (o.j && o.j.ok) {
-        gest.base[qui] = String((o.j.config && o.j.config.salvato) || ''); gestSalva();
+        gest.base[qui] = String((o.j.config && o.j.config.salvato) || ''); gest.firma[qui] = gestFirma(qui); gestSalva();
         toast('Impostazioni di ' + x.nome + ' salvate nel Worker: ' + x.riassunto + '.' + x.avvisi);
         return o;
       }
@@ -4030,6 +4039,32 @@ kbd {
       }, function () { toast('Il Worker non risponde: controlla l\'indirizzo e la connessione.'); return null; });
     });
   });
+  // All'apertura (e quando torni sulla scheda o sulla pagina) DiMail guarda nel Worker: se c'è una versione più nuova
+  // di quella che hai qui, per esempio salvata dal responsabile, la carica da sola. Serve un browser già riconosciuto.
+  var gestVisto = {};
+  function gestAggiorna(qui, quando) {
+    if (!gest || AUTO || !AUTO_SCHEDE || !AUTO_SCHEDE[qui] || !gestPronta() || !gestSessione()) return null;
+    if (quando === 'ritorno' && gestVisto[qui] && Date.now() - gestVisto[qui] < 30000) return null;   // tornando spesso sulla pagina: al massimo ogni 30 secondi
+    gestVisto[qui] = Date.now();
+    return gestRichiesta('GET', '/pubblica/config?report=' + encodeURIComponent(qui)).then(function (o) {
+      if (gestNonRiconosciuto(o)) { gest.sessione = ''; gestSalva(); gestDisegna(); return o; }
+      if (!(o.j && o.j.ok && o.j.config && o.j.config.modello)) return o;
+      var c = o.j.config, salvato = String(c.salvato || ''), prima = String(gest.base[qui] || '');
+      if (salvato === prima || attivo !== qui) return o;   // qui c'è già l'ultima versione (o hai cambiato scheda nel frattempo)
+      var chi = c.salvatoDa ? ' da ' + c.salvatoDa : '', quandoSalvato = gestData(c.salvato);
+      // gli screenshot già incollati in questa scheda non si buttano: si carica alla prossima apertura
+      if (quando !== 'apertura' && fotoVisibili(qui)) {
+        toast('Nel Worker c\'è una versione più nuova di ' + o.j.nome + chi + ' (' + quandoSalvato + '). Non la carico ora per non togliere gli screenshot: si carica da sola alla prossima apertura di DiMail.');
+        return o;
+      }
+      var nonInviate = prima && gest.firma[qui] && gest.firma[qui] !== gestFirma(qui);
+      gest.base[qui] = salvato; gestApplica(c); gest.firma[qui] = gestFirma(qui); gestSalva();
+      toast((prima ? 'Ho caricato l\'ultima versione di ' + o.j.nome + ' salvata nel Worker' : 'Ho portato qui le impostazioni di ' + o.j.nome + ' così come sono nel Worker:') + chi + ' (' + quandoSalvato + ').' +
+        (nonInviate ? ' Le modifiche fatte qui e non inviate sono state sostituite.' : ''));
+      return o;
+    }, function () { return null; });
+  }
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') gestAggiorna(attivo, 'ritorno'); });
   // Riporta in questa scheda le impostazioni salvate nel Worker (anche le immagini delle pagine): sostituiscono quelle di qui
   function gestApplica(c) {
     var qui = attivo, m = clone(c.modello);
@@ -4392,6 +4427,7 @@ kbd {
   renderSezioni();
   update();
   if (AUTO) autoEsegui();
+  else gestAggiorna(attivo, 'apertura');
 })();
 </script>
 </body>
