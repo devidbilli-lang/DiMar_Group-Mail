@@ -184,6 +184,8 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
 .sez .sez-sub { font-size: 13px; }
 .sez-subs { grid-column: 2 / -1; display: grid; gap: 6px; }
 .sub-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.sez-nota { grid-column: 2 / -1; display: grid; gap: 4px; }
+.sez-nota textarea { font-size: 13px; min-height: 54px; }
 /* CHANEL-AGGIORNAMENTO CONSEGNE: collezione della sezione e descrizioni di ogni riquadro, per Power BI */
 /* CC_Spedito: collezioni contate */
 .ore-coll { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 14px; }
@@ -902,8 +904,11 @@ kbd {
     var ts = sz('titoli');
     var sez = state.sezioni.map(function (s, i) {
       var titolo = (state.numeri ? (i + 1) + '. ' : '') + esc(d(s.titolo).trim() || 'Titolo sezione');
+      // la nota scritta in DiMail; se è vuota nell'anteprima c'è l'invito a scriverla, nella mail copiata la riga da riempire in Gmail
+      var notaT = String(s.notaTesto || '').trim();
       var nota = s.note
-        ? '<tr><td style="padding:10px 0 0 0;font-family:' + FONT + ';font-size:14px;line-height:1.5;color:#4A443D;"><strong style="color:#26221E;">Note:</strong> scrivi qui un commento</td></tr>'
+        ? '<tr><td style="padding:10px 0 0 0;font-family:' + FONT + ';font-size:14px;line-height:1.5;color:#4A443D;"><strong style="color:#26221E;">Note:</strong> ' +
+          (notaT ? fmt(d(notaT)) : (mode === 'preview' ? '<span class="hint-sub">scrivila nel campo a sinistra</span>' : 'scrivi qui un commento')) + '</td></tr>'
         : '';
       var stileTitolo = 'font-family:' + FONT + ';font-size:' + ts + 'px;line-height:1.4;font-weight:bold;color:' + col('titoliColor') + ';';
       var stileSotto = 'font-family:' + FONT + ';font-size:' + sz('sottoSize') + 'px;line-height:1.4;color:' + col('sottoColor') + ';';
@@ -947,7 +952,7 @@ kbd {
     state.sezioni.forEach(function (s, i) {
       out.push((state.numeri ? (i + 1) + '. ' : '') + (d(s.titolo).trim() || 'Titolo sezione'));
       (blocchi(s) || []).forEach(function (b) { if (String(b.testo || '').trim()) out.push(d(b.testo).trim()); });
-      if (s.note) out.push('Note: ');
+      if (s.note) out.push('Note: ' + (String(s.notaTesto || '').trim() ? d(String(s.notaTesto).trim()).replace(/\*\*/g, '') : ''));
       out.push('');
     });
     if (String(state.chiusura || '').trim()) out.push(d(state.chiusura).trim());
@@ -1241,7 +1246,9 @@ kbd {
             '</div>' + (sped ? spedHtmlRiquadro(s, b, b.id) : '');
           }).join('') +
           '<button type="button" class="link" data-sub-add="1">+ Aggiungi sottotitolo</button>' +
-        '</div>' : '');
+        '</div>' : '') +
+        (s.note ? '<div class="sez-nota"><label class="flabel" for="sez-nt-' + s.id + '">Nota</label>' +
+          '<textarea id="sez-nt-' + s.id + '" rows="2" spellcheck="true" placeholder="Scrivi qui il commento">' + esc(s.notaTesto || '') + '</textarea></div>' : '');
       li.querySelector('input[type="text"]').addEventListener('input', function (e) {
         s.titolo = e.target.value; update();
         // senza una collezione scelta, quella si legge dal titolo: si aggiorna mentre si scrive
@@ -1275,7 +1282,16 @@ kbd {
         var f = document.getElementById('sez-s-' + s.id + '-' + (mx + 1));
         if (f) f.focus();
       });
-      li.querySelector('#sez-n-' + s.id).addEventListener('change', function (e) { s.note = e.target.checked; update(); });
+      li.querySelector('#sez-n-' + s.id).addEventListener('change', function (e) {
+        s.note = e.target.checked;
+        renderSezioni();
+        update();
+        // spuntata la nota, si scrive subito
+        var f = document.getElementById(s.note ? 'sez-nt-' + s.id : 'sez-n-' + s.id);
+        if (f) f.focus();
+      });
+      var notaCampo = li.querySelector('#sez-nt-' + s.id);
+      if (notaCampo) notaCampo.addEventListener('input', function (e) { s.notaTesto = e.target.value; update(); });
       li.querySelector('#sez-c-' + s.id).addEventListener('change', function (e) {
         s.sub = e.target.checked;
         var k = String(s.id);
