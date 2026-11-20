@@ -4333,7 +4333,8 @@ kbd {
     var NEXUS_COLORE_MIN = 0.001;   // sotto l'uno per mille la griglia è tutta grigia: una sola linea attiva ne porta molto di più
     // Toglie il fondo vuoto attorno al contenuto (bianco col tema chiaro di NEXUS, blu notte col tema scuro: il colore si legge
     // dall'angolo in basso a destra della foto). Serve per le note quando il Worker ha dovuto fotografare la finestra intera
-    // invece della sola tabella; su una foto già giusta non cambia nulla. Restituisce una tela, oppure null se non c'è da tagliare.
+    // invece della sola tabella, e per la griglia a blocchi 2×2, che NEXUS fa alta almeno quanto la finestra: lo sfondo che
+    // avanza sotto le linee se ne va. Su una foto già giusta non cambia nulla. Restituisce una tela, oppure null se non c'è da tagliare.
     function rifila(im) {
       try {
         var w = im.naturalWidth, h = im.naturalHeight, cv = document.createElement('canvas');
@@ -4373,7 +4374,7 @@ kbd {
             var im = new Image();
             im.onload = function () {
               if (!im.naturalWidth || !im.naturalHeight) { ko(new Error('La foto di NEXUS è vuota.')); return; }
-              var tela = fonte === 'nexus-note' ? rifila(im) : null;
+              var tela = rifila(im);
               if (tela) ok({ src: tela.toDataURL('image/png'), ratio: tela.height / tela.width, colore: quantoColore(tela) });
               else ok({ src: String(fr.result), ratio: im.naturalHeight / im.naturalWidth, colore: quantoColore(im) });
             };
