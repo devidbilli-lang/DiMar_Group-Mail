@@ -517,7 +517,7 @@ kbd {
           <div class="field">
             <label for="gest-worker">Indirizzo del Worker</label>
             <input type="url" id="gest-worker" spellcheck="false" autocapitalize="off" autocomplete="off">
-            <p class="hint">Già scritto: cambialo solo se te lo dice chi amministra il Worker. Chi gestisce la mail scrive la sua e-mail nel riquadro dei comandi, accanto all'anteprima, e preme «Invia impostazioni al Worker»: la prima volta da un browser gli arriva un codice per e-mail, poi quel browser resta riconosciuto per 30 giorni.</p>
+            <p class="hint">Già scritto: cambialo solo se te lo dice chi amministra il Worker. Chi gestisce la mail scrive la sua e-mail nel riquadro dei comandi, accanto all'anteprima, e preme «Salva Modifiche (Worker)»: la prima volta da un browser gli arriva un codice per e-mail, poi quel browser resta riconosciuto per 30 giorni.</p>
           </div>
           <div class="pbi-row">
             <button type="button" class="btn primary" id="auto-copia">Copia impostazioni per il Worker</button>
@@ -569,7 +569,7 @@ kbd {
           </div>
           <div class="cmd-coppia">
             <button type="button" class="btn primary" id="copy-mail">Copia mail per Gmail</button>
-            <button type="button" class="btn primary" id="auto-invia">Invia impostazioni al Worker</button>
+            <button type="button" class="btn primary" id="auto-invia">Salva Modifiche (Worker)</button>
           </div>
         </div>
       </aside>
@@ -3627,7 +3627,7 @@ kbd {
         if (o.j && o.j.ok && Array.isArray(o.j.coppie)) {
           spedSalvaElenco(String(o.j.sett || ''), o.j.coppie.filter(function (c) { return Array.isArray(c) && typeof c[0] === 'string' && typeof c[1] === 'string'; }));
           if (attivo === 'chanel') renderSezioni();
-          pbiEsito('ok', 'Lette tramite il Worker ' + spedCollezioni().length + ' collezioni e ' + o.j.coppie.length + ' descrizioni (settimana ' + o.j.sett + '). Ora, a sinistra, spunta le descrizioni di ogni riquadro e poi premi «Invia impostazioni al Worker».');
+          pbiEsito('ok', 'Lette tramite il Worker ' + spedCollezioni().length + ' collezioni e ' + o.j.coppie.length + ' descrizioni (settimana ' + o.j.sett + '). Ora, a sinistra, spunta le descrizioni di ogni riquadro e poi premi «Salva Modifiche (Worker)».');
         } else if (!gestNonRiconosciuto(o)) pbiEsito('err', (o.j && o.j.errore) || 'Il Worker ha risposto ' + o.stato + '.');
         return o;
       }, function () { fine(); pbiEsito('err', 'Il Worker non risponde: controlla l\'indirizzo e la connessione.'); return null; });
@@ -4002,16 +4002,16 @@ kbd {
         gestSalva();
         var chi = o.j.config.salvatoDa ? ' da ' + o.j.config.salvatoDa : '';
         toast(perche === 'conflitto'
-          ? 'Nel frattempo le impostazioni di ' + o.j.nome + ' sono state cambiate' + chi + ' (' + gestData(o.j.config.salvato) + '): le ho riportate qui. Rifai le tue modifiche e premi di nuovo «Invia impostazioni al Worker».'
-          : 'Prima volta da questo browser: ho portato qui le impostazioni di ' + o.j.nome + ' così come sono nel Worker (del ' + gestData(o.j.config.salvato) + '). Fai le modifiche e premi di nuovo «Invia impostazioni al Worker».');
+          ? 'Nel frattempo le impostazioni di ' + o.j.nome + ' sono state cambiate' + chi + ' (' + gestData(o.j.config.salvato) + '): le ho riportate qui. Rifai le tue modifiche e premi di nuovo «Salva Modifiche (Worker)».'
+          : 'Prima volta da questo browser: ho portato qui le impostazioni di ' + o.j.nome + ' così come sono nel Worker (del ' + gestData(o.j.config.salvato) + '). Fai le modifiche e premi di nuovo «Salva Modifiche (Worker)».');
       }
       return o;
     });
   }
   function gestManda(qui, x) {
     var b = $('#auto-invia');
-    b.disabled = true; b.textContent = 'Invio…';
-    var fine = function () { b.disabled = false; b.textContent = 'Invia impostazioni al Worker'; };
+    b.disabled = true; b.textContent = 'Salvataggio…';
+    var fine = function () { b.disabled = false; b.textContent = 'Salva Modifiche (Worker)'; };
     return gestRichiesta('POST', '/pubblica', x.testo, { 'X-Dimail-Base': gest.base[qui] || '' }).then(function (o) {
       fine();
       if (o.j && o.j.ok) {
