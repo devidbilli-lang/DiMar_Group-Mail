@@ -526,7 +526,7 @@ kbd {
         <div class="cmd-blocco">
           <div class="cmd-coppia">
             <button type="button" class="btn" id="svuota" disabled>Svuota riquadri</button>
-            <button type="button" class="btn" id="sped-tutti" hidden title="Compila da Power BI tutti i riquadri della scheda, con il giorno scelto nel campo «Giorno»">Compila tutti i riquadri</button>
+            <button type="button" class="btn" id="sped-tutti" title="Compila da Power BI tutti i riquadri della scheda (le pagine scelte in «Impostazioni riquadri»), con il giorno scelto sopra l'anteprima">Compila tutti i riquadri</button>
           </div>
           <div class="cmd-coppia">
             <button type="button" class="btn primary" id="copy-mail">Copia mail per Gmail</button>
@@ -3984,7 +3984,6 @@ kbd {
     if (!sel) return;
     Array.prototype.forEach.call(sel.options, function (o) { o.disabled = attivo === 'chanel' ? (o.value !== 'sped' && o.value !== 'ore') : o.value === 'sped'; });
     $('#sped-riga').hidden = attivo !== 'chanel';
-    $('#sped-tutti').hidden = attivo !== 'chanel';
     spedStato();
     oreCollDisegna();
     var bq = attivo === 'chanel' ? spedBlocco(state, $('#pbi-box').value) : null;
@@ -4024,6 +4023,53 @@ kbd {
       toast('Riquadro compilato da Power BI.');
     }, function (e) {
       pbiEsito('err', e.message);
+    }).then(function () { pbiOccupato = false; pbiDisegna(); });
+  }
+
+  // «Compila tutti i riquadri». In CHANEL-AGGIORNAMENTO CONSEGNE ogni riquadro ha la sua pagina e i suoi temi (sotto); nelle
+  // altre schede valgono le pagine scelte in «Impostazioni riquadri», le stesse della mail automatica: una lettura per pagina,
+  // tranne Ore Spedite, che si legge per riquadro (ognuno ha le sue collezioni tolte). I riquadri di NEXUS restano come sono:
+  // la foto di NEXUS la fa il Worker solo per la mail automatica.
+  function compilaTutti() {
+    if (attivo === 'chanel') { spedCompilaTutti(); return; }
+    if (pbiServeAccesso(compilaTutti)) return;
+    var giorno = pbiGiorno();
+    if (!giorno) { toast('Scegli il giorno nel campo «Giorno», sopra l\'anteprima della mail.'); $('#pbi-data').focus(); return; }
+    var auto = state.auto || {}, tutte = chiavi(state);
+    var daPbi = tutte.filter(function (k) { var f = fonteAuto(auto[k]); return f && f.tipo === 'pbi'; });
+    var daNexus = tutte.filter(function (k) { var f = fonteAuto(auto[k]); return f && f.tipo !== 'pbi'; });
+    if (!daPbi.length) {
+      var t0 = 'Nessun riquadro ha una pagina di Power BI: sceglile in «Impostazioni riquadri».';
+      pbiEsito('err', t0); toast(t0); return;
+    }
+    var dest = imgsAll[attivo], letti = {}, vuote = [], fatti = 0, coda = Promise.resolve();
+    pbiOccupato = true; pbiDisegna();
+    pbiEsito('info', 'Leggo i valori da Power BI…');
+    daPbi.forEach(function (k) {
+      var id = auto[k], pag = PBI_PAGINE[id], perRiquadro = id === 'ore', lettura = perRiquadro ? id + '|' + k : id;
+      coda = coda.then(function () {
+        if (Object.prototype.hasOwnProperty.call(letti, lettura)) return letti[lettura];
+        return pag.leggi(giorno, perRiquadro ? k : undefined).then(function (d) { letti[lettura] = d; return d; });
+      }).then(function (d) {
+        return Promise.all([pbiSfondiPronti(), pbiCaratteri, pbiLogoAttesa]).then(function () { return d; });
+      }).then(function (d) {
+        if (!d || pag.vuoto(d)) { if (vuote.indexOf(pag.nome) === -1) vuote.push(pag.nome); return; }
+        dest[k] = pag.immagine(d, k);
+        if (pag === PBI_PAGINE.ore) oreUltimo = k;
+        fatti++;
+      });
+    });
+    coda.then(function () {
+      pbiOccupato = false;
+      update();
+      var t = (!fatti ? 'Nessun riquadro compilato' : fatti === 1 ? 'Compilato 1 riquadro' : 'Compilati ' + fatti + ' riquadri') + ' su ' + daPbi.length + ', valori del ' + giorno.testo + '.' +
+        (vuote.length ? ' Senza valori, lasciati com\'erano: ' + vuote.join('; ') + '.' : '') +
+        (daNexus.length ? ' ' + (daNexus.length === 1 ? 'Il riquadro di NEXUS resta' : 'I riquadri di NEXUS restano') + ' da incollare.' : '');
+      pbiEsito(fatti ? 'ok' : 'info', t);
+      toast(t);
+    }, function (e) {
+      pbiEsito('err', e.message);
+      toast('Compilazione non riuscita: ' + e.message);
     }).then(function () { pbiOccupato = false; pbiDisegna(); });
   }
 
@@ -4190,7 +4236,7 @@ kbd {
     });
     $('#pbi-prova').addEventListener('click', pbiProva);
     $('#pbi-compila').addEventListener('click', pbiCompila);
-    $('#sped-tutti').addEventListener('click', spedCompilaTutti);
+    $('#sped-tutti').addEventListener('click', compilaTutti);
     // nella scheda CONSEGNE la pagina segue il riquadro scelto (serve anche per caricare la sua immagine)
     $('#pbi-box').addEventListener('change', function () { if (attivo === 'chanel') pbiPaginaPerScheda(); });
     $('#sped-leggi').addEventListener('click', spedLeggiElenco);
