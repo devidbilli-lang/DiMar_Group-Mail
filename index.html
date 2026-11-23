@@ -1695,8 +1695,8 @@ kbd {
     function oreRighe(p) {
       return oreDef(p) + "VAR __Righe = SUMMARIZECOLUMNS('salesShipmentLine'[Articolo + Colore], 'salesLine'[Descrizione Commerciale], " + ORE_FILTRI + ",\n"
         + "\"Qta\", CALCULATE(SUM('salesShipmentLine'[Qtà])),\n\"Ore\", 'Calendario'[Valentano_CC])\n"
-        + "EVALUATE TOPN(200, __Righe, [Qta], 0, 'salesShipmentLine'[Articolo + Colore], 1, 'salesLine'[Descrizione Commerciale], 1)\n"
-        + "ORDER BY [Qta] DESC, 'salesShipmentLine'[Articolo + Colore], 'salesLine'[Descrizione Commerciale]";
+        + "EVALUATE TOPN(200, __Righe, [Ore], 0, [Qta], 0, 'salesShipmentLine'[Articolo + Colore], 1, 'salesLine'[Descrizione Commerciale], 1)\n"
+        + "ORDER BY [Ore] DESC, [Qta] DESC, 'salesShipmentLine'[Articolo + Colore], 'salesLine'[Descrizione Commerciale]";
     }
 
     // ── Ore Spedite LV: la settimana del giorno (dalla tabella del report), poi valori e giorni
@@ -3113,7 +3113,8 @@ kbd {
           var sku = campo(x, '[Articolo + Colore]'), ds = campo(x, '[Descrizione Commerciale]');
           d.righe.push({ sku: sku === null ? '' : String(sku), desc: ds === null ? '' : String(ds), qta: num(x['[Qta]']), ore: num(x['[Ore]']) });
         });
-        d.righe.sort(function (a, b) { return ((b.qta || 0) - (a.qta || 0)) || (a.sku < b.sku ? -1 : a.sku > b.sku ? 1 : 0) || (a.desc < b.desc ? -1 : a.desc > b.desc ? 1 : 0); });
+        // dalle ore spedite più alte alle più basse (a parità di ore, la quantità più alta prima)
+        d.righe.sort(function (a, b) { return ((b.ore || 0) - (a.ore || 0)) || ((b.qta || 0) - (a.qta || 0)) || (a.sku < b.sku ? -1 : a.sku > b.sku ? 1 : 0) || (a.desc < b.desc ? -1 : a.desc > b.desc ? 1 : 0); });
         d.righeTotali = d.righe.length;
         return d;
       });
@@ -3270,7 +3271,7 @@ kbd {
       });
     }
 
-    // Tabella degli articoli spediti, dal più spedito
+    // Tabella degli articoli spediti, dalle ore spedite più alte
     tessera(1091, 371, 780, 681);
     var COL = [['SKU', 1105, 1397], ['Descrizione\nCommerciale', 1397, 1650], ['Qtà\nSpedita', 1650, 1749], ['Ore\nSpedite', 1749, 1850]];
     COL.forEach(function (cl) {
@@ -3278,7 +3279,8 @@ kbd {
       if (tt.length === 1) testo(tt[0], cx, 411, '24px', BLU);
       else { testo(tt[0], cx, 411, '24px', BLU, 'center', cl[2] - cl[1] - 6); testo(tt[1], cx, 441, '24px', BLU, 'center', cl[2] - cl[1] - 6); }
     });
-    x.fillStyle = BLU; x.beginPath(); x.moveTo(1659, 451); x.lineTo(1675, 451); x.lineTo(1667, 458); x.closePath(); x.fill();
+    // il triangolo dell'ordinamento sotto «Ore Spedite», la colonna per cui la tabella è ordinata
+    x.fillStyle = BLU; x.beginPath(); x.moveTo(1758, 451); x.lineTo(1774, 451); x.lineTo(1766, 458); x.closePath(); x.fill();
     x.fillRect(1105, 463, 745, 5);
     var HR = 33.8;
     d.righe.slice(0, PBI_ORE.righeMax).forEach(function (r, i) {
