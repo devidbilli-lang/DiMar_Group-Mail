@@ -3122,7 +3122,7 @@ kbd {
   }
   function pbiElencoOre(d) {
     var contate = d.coll.filter(function (c) { return (d.collTolte || []).indexOf(c) === -1; }), fuori = d.coll.filter(function (c) { return (d.collTolte || []).indexOf(c) !== -1; });
-    var v = [['Settimana', d.sett + ' del ' + d.anno + (d.settCalcolata ? ' (calcolata da DiMail)' : '')], ['Ore Spedite', pbiNumero(d.ore, 0)], ['Qtà Spedita', pbiNumero(d.qta, 0)], ['Collezioni contate', contate.join(', ') || '--'], ['Collezioni tolte', fuori.join(', ') || 'nessuna'], ['Data Inizio', d.inizio || '--'], ['Data Fine Iniziale (Chanel)', d.fine || '--']];
+    var v = [['Settimana', d.sett + ' del ' + d.anno + (d.settCalcolata ? ' (calcolata da DiMail)' : '')], ['Ore Spedite', pbiNumero(d.ore, 0)], ['Qtà Spedita', pbiNumero(d.qta, 0)], ['Collezioni contate', contate.join(', ') || '--'], ['Collezioni tolte', fuori.join(', ') || 'nessuna']];
     d.giorni.forEach(function (g) { v.push(['Grafico ' + pbiDataBreve(g.data), pbiNumero(g.ore, 0) + ' Ore · ' + pbiNumero(g.qta, 0) + ' Pcs']); });
     d.righe.slice(0, PBI_ORE.righeMax).forEach(function (r) { v.push([r.sku, r.desc + ' · Qtà ' + pbiNumero(r.qta, 0) + ' · Ore ' + pbiNumero(r.ore, 0)]); });
     if (d.righe.length > PBI_ORE.righeMax) v.push(['Tabella', 'altri ' + (d.righe.length - PBI_ORE.righeMax) + ' articoli non entrano nella pagina']);
@@ -3141,7 +3141,7 @@ kbd {
   function pbiImmagineOre(d) {
     var SW = 1878, SH = 1054, k = (BOX_W * 2) / SW, F = PBI_F;
     var SFONDO = '#0B1220', TESSERA = '#131C2E', BORDO = '#1D2A42', BIANCO = '#FFFFFF';
-    var VIOLA = '#CC66FF', VIOLA_F = '#412E62', VERDE = '#32FF88', VERDE_F = '#1A5544', BLU = '#118DFF', BLU_CHIARO = '#D2E9FF', INDACO = '#7676FF', MAGENTA = '#FF20F0';
+    var VIOLA = '#CC66FF', VIOLA_F = '#412E62', VERDE = '#32FF88', VERDE_F = '#1A5544', BLU = '#118DFF', BLU_CHIARO = '#D2E9FF';
     var c = document.createElement('canvas');
     c.width = BOX_W * 2; c.height = Math.round(SH * k);
     var x = c.getContext('2d');
@@ -3204,32 +3204,29 @@ kbd {
     x.lineWidth = 2; x.strokeStyle = '#000000'; x.beginPath(); x.moveTo(581, 215); x.lineTo(592, 227); x.lineTo(603, 215); x.stroke();
 
     // Ore Spedite e Qtà Spedita
-    tessera(643, 147, 576, 215);
-    testo('Ore Spedite', 785, 219, '36px', VIOLA);
-    testo(pbiNumero(d.ore, 0), 785, 316, adatta(pbiNumero(d.ore, 0), '700 ', 84, 40, 262), VIOLA);
-    testo('Qtà Spedita', 1074, 219, '36px', VERDE);
-    testo(pbiNumero(d.qta, 0), 1074, 316, adatta(pbiNumero(d.qta, 0), '700 ', 84, 40, 262), VERDE);
+    tessera(643, 147, 825, 215);
+    testo('Ore Spedite', 849, 207, '38px', VIOLA);
+    testo(pbiNumero(d.ore, 0), 849, 334, adatta(pbiNumero(d.ore, 0), '700 ', 118, 40, 380), VIOLA);
+    testo('Qtà Spedita', 1260, 207, '38px', VERDE);
+    testo(pbiNumero(d.qta, 0), 1260, 334, adatta(pbiNumero(d.qta, 0), '700 ', 118, 40, 380), VERDE);
 
-    // Collezione: un pulsante per ogni collezione della settimana
-    tessera(1228, 147, 296, 215);
-    testo('Collezione', 1376, 176, '22px', BIANCO);
+    // Collezione: pulsanti a due colonne, due righe visibili e la barra di scorrimento se sono di più, come il filtro di
+    // Power BI. Senza collezioni tolte nel filtro non c'è niente di scelto: pulsanti bianchi. Con qualcuna tolta, quelle
+    // contate sono le scelte: pulsanti blu.
+    tessera(1480, 147, 390, 215);
+    testo('Collezione', 1675, 179, '22px', BIANCO);
     if (d.coll.length) {
-      var nc = d.coll.length, per = Math.min(nc, 4), righeC = Math.ceil(nc / per), lc = (266 - 8 * (per - 1)) / per, hc = (157 - 8 * (righeC - 1)) / righeC;
-      d.coll.forEach(function (nome, i) {
-        var cx0 = 1242 + (i % per) * (lc + 8), cy0 = 190 + Math.floor(i / per) * (hc + 8);
-        var scelta = (d.collTolte || []).indexOf(nome) === -1;
-        rr(cx0, cy0, lc, hc, 9); x.fillStyle = scelta ? BLU : BIANCO; x.fill(); x.lineWidth = 4; x.strokeStyle = BLU; x.stroke();
-        var f = adatta(nome, scelta ? '700 ' : '', righeC > 1 ? 22 : 26, 11, lc - 14);
+      var tolte = d.collTolte || [], qualcunaTolta = d.coll.some(function (c) { return tolte.indexOf(c) !== -1; });
+      var lc = 168, hc = 76, nc = d.coll.length, barra = nc > 4;
+      d.coll.slice(0, 4).forEach(function (nome, i) {
+        var cx0 = 1494 + (i % 2) * (lc + 6), cy0 = 193 + Math.floor(i / 2) * (hc + 7);
+        var scelta = qualcunaTolta && tolte.indexOf(nome) === -1;
+        rr(cx0 + 2, cy0 + 2, lc - 4, hc - 4, 9); x.fillStyle = scelta ? BLU : BIANCO; x.fill(); x.lineWidth = 4; x.strokeStyle = BLU; x.stroke();
+        var f = adatta(nome, scelta ? '700 ' : '', 26, 12, lc - 18);
         testo(nome, cx0 + lc / 2, cy0 + hc / 2 + parseInt(f.replace(/^700 /, ''), 10) * 0.36, f, scelta ? BIANCO : '#000000');
       });
+      if (barra) { rr(1846, 192, 10, Math.max(30, 158 * 4 / nc), 5); x.fillStyle = '#C8C8C8'; x.fill(); }
     }
-
-    // Data Inizio e Data Fine Iniziale (Chanel)
-    [[148, 103, INDACO, 'Data Inizio', d.inizio], [258, 104, MAGENTA, 'Data Fine Iniziale (Chanel)', d.fine]].forEach(function (b) {
-      rr(1533, b[0] + 2, 336, b[1] - 4, 9); x.fillStyle = TESSERA; x.fill(); x.lineWidth = 5; x.strokeStyle = b[2]; x.stroke();
-      testo(b[3], 1701, b[0] + 38, adatta(b[3], '', 21, 14, 310), b[2]);
-      testo(b[4] === null ? '(Vuoto)' : b[4], 1701, b[0] + 80, adatta(b[4] === null ? '(Vuoto)' : b[4], '700 ', 38, 20, 310), b[2]);
-    });
 
     // Grafico: una colonna per giorno, tutta alta uguale, divisa tra ore (sotto) e pezzi (sopra) in proporzione
     tessera(8, 371, 1074, 681);
@@ -3243,7 +3240,9 @@ kbd {
     });
     var gg = d.giorni, ng = gg.length;
     if (ng) {
-      var PX0 = 112, PX1 = 995, YT = 439, YB = 971, passo = (PX1 - PX0) / ng, lb = Math.min(passo * 0.947, 230);
+      var PX0 = 112, PX1 = 995, YT = 439, passo = (PX1 - PX0) / ng, lb = Math.min(passo * 0.947, 270);
+      var testoData = function (g) { return g.data.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); };
+      var unaRiga = gg.every(function (g) { return largo(testoData(g), '23px') <= passo - 8; }), YB = unaRiga ? 1010 : 971;
       function etichetta(n, unita, cx, y0, y1, colore) {
         var h = y1 - y0;
         if (h < 28) return;
@@ -3262,8 +3261,9 @@ kbd {
           if (n > 0) etichetta(n, 'Pcs', cx, YT, yMezzo, VERDE);
           if (o > 0) etichetta(o, 'Ore', cx, yMezzo, YB, VIOLA);
         }
-        // data sotto la colonna, su due righe
-        var t = g.data.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }), parole = t.split(' ');
+        // data sotto la colonna: su una riga se ci sta, se no su due
+        var t = testoData(g), parole = t.split(' ');
+        if (unaRiga) { testo(t, cx, 1041, '23px', BIANCO); return; }
         var f = '23px', r1 = parole.slice(0, 3).join(' '), r2 = parole.slice(3).join(' ');
         if (largo(r1, f) > passo - 8) { r1 = parole.slice(0, 2).join(' '); r2 = parole.slice(2).join(' '); }
         if (largo(r1, f) > passo - 8 || largo(r2, f) > passo - 8) f = adatta(largo(r1, f) > largo(r2, f) ? r1 : r2, '', 23, 13, passo - 8);
