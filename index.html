@@ -3156,7 +3156,7 @@ kbd {
       x.lineTo(x0, y0 + r); x.quadraticCurveTo(x0, y0, x0 + r, y0);
       x.closePath();
     }
-    function tessera(x0, y0, w, h) { rr(x0, y0, w, h, 10); x.fillStyle = TESSERA; x.fill(); x.lineWidth = 2; x.strokeStyle = BORDO; x.stroke(); }
+    function tessera(x0, y0, w, h) { rr(x0, y0, w, h, 10); x.fillStyle = TESSERA; x.fill(); x.lineWidth = 1; x.strokeStyle = BORDO; x.stroke(); }
     function testo(t, px, y, font, colore, allinea, max) {
       x.font = font + ' ' + F; x.fillStyle = colore; x.textAlign = allinea || 'center';
       if (max) x.fillText(t, px, y, max); else x.fillText(t, px, y);
