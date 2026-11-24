@@ -3240,9 +3240,20 @@ kbd {
     });
     var gg = d.giorni, ng = gg.length;
     if (ng) {
-      var PX0 = 112, PX1 = 995, YT = 439, passo = (PX1 - PX0) / ng, lb = Math.min(passo * 0.947, 270);
+      // Come in Power BI: colonne larghe 270 con 16 di spazio tra l'una e l'altra, il gruppo al centro del grafico; i giorni
+      // si aggiungono man mano e solo quando non c'è più posto le colonne si stringono per riempire tutta la larghezza.
+      var PX0 = 112, PX1 = 995, YT = 439, passo = Math.min(286, (PX1 - PX0) / ng), lb = Math.min(passo * 0.947, 270);
+      var inizio = passo * ng < PX1 - PX0 - 1 ? 545 - passo * ng / 2 : PX0;
+      var DF = '22px', spazio = passo - 4;
       var testoData = function (g) { return g.data.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); };
-      var unaRiga = gg.every(function (g) { return largo(testoData(g), '23px') <= passo - 8; }), YB = unaRiga ? 1010 : 971;
+      // la data va a capo dove serve, parola per parola, come fa Power BI
+      var aCapo = function (t) {
+        var righe = [], r = '';
+        t.split(' ').forEach(function (p) { var prova = r ? r + ' ' + p : p; if (r && largo(prova, DF) > spazio) { righe.push(r); r = p; } else r = prova; });
+        if (r) righe.push(r);
+        return righe;
+      };
+      var unaRiga = gg.every(function (g) { return aCapo(testoData(g)).length === 1 && largo(testoData(g), DF) <= spazio; }), YB = unaRiga ? 1010 : 971;
       function etichetta(n, unita, cx, y0, y1, colore) {
         var h = y1 - y0;
         if (h < 28) return;
@@ -3253,7 +3264,7 @@ kbd {
         testo(a, cx - tot / 2, yy, grande + 'px', colore, 'left'); testo(' ' + unita, cx - tot / 2 + la, yy, piccolo + 'px', colore, 'left');
       }
       gg.forEach(function (g, i) {
-        var cx = PX0 + passo * (i + 0.5), x0 = cx - lb / 2, o = Math.max(0, g.ore || 0), n = Math.max(0, g.qta || 0), tot = o + n;
+        var cx = inizio + passo * (i + 0.5), x0 = cx - lb / 2, o = Math.max(0, g.ore || 0), n = Math.max(0, g.qta || 0), tot = o + n;
         if (tot > 0) {
           var hv = (YB - YT) * n / tot, yMezzo = YT + hv;
           if (n > 0) { x.fillStyle = VERDE_F; x.fillRect(x0, YT, lb, hv); x.lineWidth = 4; x.strokeStyle = VERDE; x.strokeRect(x0 + 2, YT + 2, lb - 4, Math.max(1, hv - 4)); }
@@ -3261,12 +3272,15 @@ kbd {
           if (n > 0) etichetta(n, 'Pcs', cx, YT, yMezzo, VERDE);
           if (o > 0) etichetta(o, 'Ore', cx, yMezzo, YB, VIOLA);
         }
-        // data sotto la colonna: su una riga se ci sta, se no su due
-        var t = testoData(g), parole = t.split(' ');
-        if (unaRiga) { testo(t, cx, 1041, '23px', BIANCO); return; }
-        var f = '23px', r1 = parole.slice(0, 3).join(' '), r2 = parole.slice(3).join(' ');
-        if (largo(r1, f) > passo - 8) { r1 = parole.slice(0, 2).join(' '); r2 = parole.slice(2).join(' '); }
-        if (largo(r1, f) > passo - 8 || largo(r2, f) > passo - 8) f = adatta(largo(r1, f) > largo(r2, f) ? r1 : r2, '', 23, 13, passo - 8);
+        // data sotto la colonna: su una riga se ci sta, se no va a capo (al massimo due righe)
+        var t = testoData(g), parole = t.split(' '), righe = aCapo(t);
+        if (unaRiga) { testo(t, cx, 1041, DF, BIANCO); return; }
+        if (righe.length === 1 && largo(t, DF) <= spazio) { testo(t, cx, 1012, DF, BIANCO); return; }
+        var f = DF, r1 = righe[0], r2 = righe.slice(1).join(' ');
+        if (righe.length > 2 || largo(r1, f) > spazio) {
+          r1 = parole.slice(0, 2).join(' '); r2 = parole.slice(2).join(' ');
+          if (largo(r1, f) > spazio || largo(r2, f) > spazio) f = adatta(largo(r1, f) > largo(r2, f) ? r1 : r2, '', 22, 13, spazio);
+        }
         testo(r1, cx, 1012, f, BIANCO); testo(r2, cx, 1040, f, BIANCO);
       });
     }
