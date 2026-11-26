@@ -2381,7 +2381,7 @@ kbd {
         if (q > 0) { x.strokeStyle = col_; x.beginPath(); x.arc(cx, cy, R, Math.PI, Math.PI + Math.PI * q); x.stroke(); }
       }
       var tv = perc(it.v);
-      testo(tv, cx, cy - 12, (tv.length > 3 ? 62 : 75) + 'px', col_);
+      testo(tv, cx, cy - 12, '75px', col_);   // stessa grandezza con 2 o 3 cifre
       x.fillStyle = '#C9D0DC'; x.font = '24px ' + F;
       x.textAlign = 'left'; x.fillText('0%', cx - R - LW / 2, cy + 32);
       x.textAlign = 'right'; x.fillText('100%', cx + R + LW / 2, cy + 32);
@@ -2577,7 +2577,7 @@ kbd {
         if (q > 0) { x.strokeStyle = it.c; x.beginPath(); x.arc(cx, cy, R, Math.PI, Math.PI + Math.PI * q); x.stroke(); }
       }
       var tv = perc(it.v);
-      testo(tv, cx, cy - 14, (tv.length > 3 ? 62 : 76) + 'px', it.c);
+      testo(tv, cx, cy - 14, '76px', it.c);   // stessa grandezza con 2 o 3 cifre
       testo('0%', cx - R - LW / 2, cy + 31, '23px', BIANCO, 'left');
       testo('100%', cx + R + LW / 2, cy + 31, '23px', BIANCO, 'right');
     });
@@ -2886,7 +2886,7 @@ kbd {
         if (q > 0) { x.strokeStyle = ARCO; x.beginPath(); x.arc(cx, cy, R, Math.PI, Math.PI + Math.PI * q); x.stroke(); }
       }
       var tv = g[2] === null ? '(Vuoto)' : perc(g[2]);
-      testo(tv, cx, cy - 13, (tv.length > 4 ? 54 : tv.length > 3 ? 62 : 74) + 'px', CIANO_T);
+      testo(tv, cx, cy - 13, (tv.length > 4 ? 54 : 74) + 'px', CIANO_T);   // le % con 2 o 3 cifre uguali; più piccolo solo «(Vuoto)»
       testo('0%', cx - R - LW / 2 - 8, cy, '21px', BIANCO, 'right');
       testo('100%', cx + R + LW / 2 + 8, cy, '21px', BIANCO, 'left');
     });
@@ -3858,7 +3858,7 @@ kbd {
       x.beginPath(); x.arc(cx, cy, R, Math.PI, 2 * Math.PI); x.arc(cx, cy, r, 2 * Math.PI, Math.PI, true); x.closePath(); x.fillStyle = GRIGIO; x.fill();
       if (f > 0) { x.beginPath(); x.arc(cx, cy, R, Math.PI, Math.PI * (1 + f)); x.arc(cx, cy, r, Math.PI * (1 + f), Math.PI, true); x.closePath(); x.fillStyle = colore; x.fill(); }
       var s = vuoto(v) ? '(Vuoto)' : pbiNumero(v * 100, 1) + '%';
-      testo(s, cx, 360, adatta(s, '', 64, 24, 2 * r - 50), colore);
+      testo(s, cx, 360, adatta(s, '', 64, 24, 2 * r - 14), colore);   // «100,0%» resta grande come «85,3%»; si stringe solo se proprio non ci sta
     }
     contatore(201, '% Qtà Spedita', VERDE, t.pSped);
     contatore(1694, '% Obiettivo Attuale', ARANCIO, t.pObR);
